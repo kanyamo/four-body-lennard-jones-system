@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Sweep side_scale and estimate how long the triangle+center structure stays intact."""
+
 from __future__ import annotations
 
 import argparse
 import math
 from pathlib import Path
+from tqdm import tqdm
 from typing import Iterable, Sequence
 
 import matplotlib.pyplot as plt
@@ -13,7 +15,9 @@ import numpy as np
 import lj4_3d
 
 
-def initialize_state(side_scale: float, vb: float, z0: float) -> tuple[np.ndarray, np.ndarray]:
+def initialize_state(
+    side_scale: float, vb: float, z0: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Return initial positions and velocities for the four-body configuration."""
     r_star = (2.0 * (1.0 + 1.0 / (3**6)) / (1.0 + 1.0 / (3**3))) ** (1.0 / 6.0)
     side = math.sqrt(3.0) * r_star * side_scale
@@ -32,7 +36,9 @@ def initialize_state(side_scale: float, vb: float, z0: float) -> tuple[np.ndarra
     return X0, V0
 
 
-def pairwise_distances(X: np.ndarray, pairs: Sequence[tuple[int, int]] | None = None) -> tuple[np.ndarray, list[tuple[int, int]]]:
+def pairwise_distances(
+    X: np.ndarray, pairs: Sequence[tuple[int, int]] | None = None
+) -> tuple[np.ndarray, list[tuple[int, int]]]:
     """Compute the distances for all requested particle index pairs."""
     if pairs is None:
         n = X.shape[0]
@@ -87,7 +93,9 @@ def measure_breaks(
             pair_str: str | None = None
         else:
             break_time = step_hit * dt
-            pair = pairs[break_pair_idx[idx]] if break_pair_idx[idx] is not None else None
+            pair = (
+                pairs[break_pair_idx[idx]] if break_pair_idx[idx] is not None else None
+            )
             pair_str = None if pair is None else f"{pair[0]}-{pair[1]}"
         results.append(
             {
@@ -112,7 +120,7 @@ def sweep_side_scales(
 ) -> list[dict[str, float | str | None]]:
     """Evaluate break times for each side_scale in *side_scales* across all thresholds."""
     results: list[dict[str, float | str | None]] = []
-    for scale in side_scales:
+    for scale in tqdm(side_scales, desc="Sweeping side scales"):
         res = measure_breaks(scale, vb, z0, dt, T, thresholds, check_every)
         results.extend(res)
     return results
@@ -168,7 +176,9 @@ def save_csv(
     """Persist the numeric summary to CSV."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     header = "side_scale,threshold,break_time_or_T,max_rel_change,break_pair"
-    thresholds_str = ",".join(f"{thr:.6f}" for thr in sorted({float(t) for t in thresholds}))
+    thresholds_str = ",".join(
+        f"{thr:.6f}" for thr in sorted({float(t) for t in thresholds})
+    )
     lines = [f"# break_thresholds={thresholds_str}", header]
     for r in results:
         side_scale = float(r["side_scale"])  # typed for mypy
@@ -193,13 +203,36 @@ def parse_side_scales(args: argparse.Namespace) -> list[float]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sweep side_scale and record break times.")
-    parser.add_argument("--side-scales", type=float, nargs="*", help="explicit side_scale values to use")
-    parser.add_argument("--side-scale-min", type=float, help="linspace start (used if explicit list omitted)")
-    parser.add_argument("--side-scale-max", type=float, help="linspace end (used if explicit list omitted)")
-    parser.add_argument("--n-side-scales", type=int, help="linspace count (used with --side-scale-min/max)")
-    parser.add_argument("--vb", type=float, default=0.20, help="in-plane breathing velocity magnitude")
-    parser.add_argument("--z0", type=float, default=0.02, help="initial z-offset for the central particle")
+    parser = argparse.ArgumentParser(
+        description="Sweep side_scale and record break times."
+    )
+    parser.add_argument(
+        "--side-scales", type=float, nargs="*", help="explicit side_scale values to use"
+    )
+    parser.add_argument(
+        "--side-scale-min",
+        type=float,
+        help="linspace start (used if explicit list omitted)",
+    )
+    parser.add_argument(
+        "--side-scale-max",
+        type=float,
+        help="linspace end (used if explicit list omitted)",
+    )
+    parser.add_argument(
+        "--n-side-scales",
+        type=int,
+        help="linspace count (used with --side-scale-min/max)",
+    )
+    parser.add_argument(
+        "--vb", type=float, default=0.20, help="in-plane breathing velocity magnitude"
+    )
+    parser.add_argument(
+        "--z0",
+        type=float,
+        default=0.02,
+        help="initial z-offset for the central particle",
+    )
     parser.add_argument("--dt", type=float, default=0.002, help="time step size")
     parser.add_argument("--T", type=float, default=120.0, help="total integration time")
     parser.add_argument(
@@ -249,7 +282,9 @@ def main() -> None:
 
     side_scales = parse_side_scales(args)
     thresholds = (
-        args.break_thresholds if args.break_thresholds is not None else [args.break_threshold]
+        args.break_thresholds
+        if args.break_thresholds is not None
+        else [args.break_threshold]
     )
 
     results = sweep_side_scales(
