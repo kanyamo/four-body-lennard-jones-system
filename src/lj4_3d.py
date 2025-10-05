@@ -58,14 +58,15 @@ YS = (w1, w0, w1)
 
 
 def step_yoshida4(
-    X: np.ndarray, V: np.ndarray, dt: float
+    X: np.ndarray, V: np.ndarray, dt: float, masses: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
+    inv_m = 1.0 / masses[:, None]
     for w in YS:
         F = lj_total_forces_3d(X)
-        V = V + 0.5 * (w * dt) * F
+        V = V + 0.5 * (w * dt) * (F * inv_m)
         X = X + (w * dt) * V
         F = lj_total_forces_3d(X)
-        V = V + 0.5 * (w * dt) * F
+        V = V + 0.5 * (w * dt) * (F * inv_m)
     return X, V
 
 
@@ -97,6 +98,7 @@ def run_case(
     T: float = 80.0,
     save_every: int = 10,
     seed: int = 0,
+    center_mass: float = 1.0,
 ):
     r_star = (2.0 * (1.0 + 1.0 / (3**6)) / (1.0 + 1.0 / (3**3))) ** (1.0 / 6.0)
     side = math.sqrt(3.0) * r_star * side_scale
@@ -105,6 +107,7 @@ def run_case(
     verts = triangle_vertices_3d(side)
     center = np.array([[0.0, 0.0, z0]], float)
     X = np.vstack([verts, center])
+    masses = np.concatenate([np.ones(3), np.array([center_mass], dtype=float)])
 
     # in-plane alternating breathing (+vb,-vb,+vb)
     V = np.zeros_like(X)
@@ -118,14 +121,15 @@ def run_case(
     # tiny symmetry-breaking noise (y,z)
     # V[:, 2] += rng.normal(scale=0.002 * vb + 6e-4, size=4)
     # V[:3, 1] += rng.normal(scale=8e-4, size=3)
-    V -= V.mean(axis=0, keepdims=True)
+    v_com = np.sum(V * masses[:, None], axis=0) / masses.sum()
+    V -= v_com
 
     nsteps = int(T / dt)
     Xc, Vc = X.copy(), V.copy()
     times_list, center_traj_list = [], []
 
     for s in range(nsteps):
-        Xc, Vc = step_yoshida4(Xc, Vc, dt)
+        Xc, Vc = step_yoshida4(Xc, Vc, dt, masses)
         if (s + 1) % save_every == 0:
             times_list.append((s + 1) * dt)
             center_traj_list.append(Xc[3].copy())
@@ -142,6 +146,7 @@ def run_case(
             "T": T,
             "save_every": save_every,
             "seed": seed,
+            "center_mass": center_mass,
         }
     )
     return times, center_traj, rho, metrics
@@ -188,6 +193,12 @@ def main():
         "--seed", type=int, default=24, help="rng seed for tiny symmetry-breaking noise"
     )
     ap.add_argument(
+        "--center_mass",
+        type=float,
+        default=1.0,
+        help="relative mass of the central particle (vertices have mass 1)",
+    )
+    ap.add_argument(
         "--save_traj", type=str, default=None, help="CSV path to save t,x,y,z,rho"
     )
     ap.add_argument(
@@ -219,6 +230,7 @@ def main():
             args.T,
             args.save_every,
             args.seed,
+            args.center_mass,
         )
         if args.save_traj:
             np.savetxt(
@@ -248,6 +260,7 @@ def main():
                 args.T,
                 args.save_every,
                 args.seed,
+                args.center_mass,
             )
             base = f"{args.out_prefix}_vb{i:02d}"
             np.savetxt(

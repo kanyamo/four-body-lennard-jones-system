@@ -46,13 +46,14 @@ w0 = -cbrt2 / (2.0 - cbrt2)
 YS = (w1, w0, w1)
 
 
-def step_yoshida4(X, V, dt):
+def step_yoshida4(X, V, dt, masses):
+    inv_m = 1.0 / masses[:, None]
     for w in YS:
         F = lj_total_forces_3d(X)
-        V = V + 0.5 * (w * dt) * F
+        V = V + 0.5 * (w * dt) * (F * inv_m)
         X = X + (w * dt) * V
         F = lj_total_forces_3d(X)
-        V = V + 0.5 * (w * dt) * F
+        V = V + 0.5 * (w * dt) * (F * inv_m)
     return X, V
 
 
@@ -63,13 +64,14 @@ def triangle_vertices_3d(side):
     return verts - verts.mean(axis=0, keepdims=True)
 
 
-def simulate(side_scale, vb, z0, dt, T, seed=24, save_stride=2):
+def simulate(side_scale, vb, z0, dt, T, seed=24, save_stride=2, center_mass=1.0):
     r_star = (2.0 * (1.0 + 1.0 / (3**6)) / (1.0 + 1.0 / (3**3))) ** (1.0 / 6.0)
     side = math.sqrt(3.0) * r_star * side_scale
     rng = np.random.default_rng(seed)
     verts = triangle_vertices_3d(side)
     center = np.array([[0.0, 0.0, z0]], float)
     X = np.vstack([verts, center])
+    masses = np.concatenate([np.ones(3), np.array([center_mass], dtype=float)])
     V = np.zeros_like(X)
     for i in range(3):
         r2 = X[i, :2]
@@ -79,7 +81,8 @@ def simulate(side_scale, vb, z0, dt, T, seed=24, save_stride=2):
         V[i, :2] = sign * vb * u
     # V[:, 2] += rng.normal(scale=0.002 * vb + 6e-4, size=4)
     # V[:3, 1] += rng.normal(scale=8e-4, size=3)
-    V -= V.mean(axis=0, keepdims=True)
+    v_com = np.sum(V * masses[:, None], axis=0) / masses.sum()
+    V -= v_com
 
     nsteps = int(T / dt)
     snaps = []
@@ -87,7 +90,7 @@ def simulate(side_scale, vb, z0, dt, T, seed=24, save_stride=2):
     Xc = X.copy()
     Vc = V.copy()
     for s in range(nsteps):
-        Xc, Vc = step_yoshida4(Xc, Vc, dt)
+        Xc, Vc = step_yoshida4(Xc, Vc, dt, masses)
         if s % save_stride == 0:
             snaps.append(Xc.copy())
             times.append((s + 1) * dt)
@@ -109,6 +112,12 @@ def main():
         "--thin", type=int, default=5, help="store every Nth integrator step"
     )
     ap.add_argument("--outfile", type=str, default="tri_anim.mp4")
+    ap.add_argument(
+        "--center_mass",
+        type=float,
+        default=1.0,
+        help="relative mass of the central particle (vertices have mass 1)",
+    )
     args = ap.parse_args()
 
     times, snaps = simulate(
@@ -119,6 +128,7 @@ def main():
         args.T,
         args.seed,
         save_stride=args.thin,
+        center_mass=args.center_mass,
     )
 
     fig = plt.figure(figsize=(6, 6))
