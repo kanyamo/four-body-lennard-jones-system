@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Normal-mode analysis for the 4-body (triangle + center) Lennard-Jones system.
+"""Normal-mode analysis for selected 4-body Lennard-Jones equilibria.
 
-The script reconstructs the Hessian of the LJ potential at the symmetric
-equilateral configuration, optionally rescales the triangle radius, and solves
-for the eigenvalues/eigenvectors of both the raw Hessian and the mass-weighted
-"dynamical" matrix.  It also reports the six zero modes (three translations and
-three rotations) explicitly so they can be checked against symmetry arguments.
+The original version of this script handled the ``C3v`` configuration consisting
+of one central particle and three particles at the vertices of an equilateral
+triangle.  In addition to that case we now support the planar ``D2h`` rhombus
+equilibria that arise from the simultaneous force-balance conditions derived in
+``reports/rhombus_equilibrium.md``.  The script reconstructs the Hessian of the
+LJ potential for the requested configuration (optionally applying a uniform
+scale to the edge length) and solves for the eigenvalues/eigenvectors of both
+the raw Hessian and the mass-weighted "dynamical" matrix.  It also reports the
+six zero modes (three translations and three rotations) explicitly so they can
+be checked against symmetry arguments.
 
 Examples
 --------
@@ -46,6 +51,16 @@ def triangle_vertices(radius: float) -> np.ndarray:
     )
     verts -= verts.mean(axis=0, keepdims=True)
     return verts
+
+
+def lj_force_derivative(r: float) -> float:
+    """Return V'(r) for the reduced (6,12) Lennard-Jones potential."""
+
+    inv_r = 1.0 / r
+    inv_r2 = inv_r * inv_r
+    inv_r6 = inv_r2**3
+    inv_r12 = inv_r6**2
+    return LJ_COEFF * (6.0 * inv_r6 * inv_r - 12.0 * inv_r12 * inv_r)
 
 
 def pair_hessian(r_vec: np.ndarray) -> np.ndarray:
@@ -197,13 +212,19 @@ def format_complex(value: complex, digits: int) -> str:
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
-        description="Normal-mode analysis for the LJ triangle+center setup",
+        description="Normal-mode analysis for selected 4-body Lennard-Jones equilibria",
+    )
+    ap.add_argument(
+        "--config",
+        choices=["triangle_center", "rhombus", "square"],
+        default="triangle_center",
+        help="equilibrium family to analyse (triangle_center, rhombus, square)",
     )
     ap.add_argument(
         "--side-scale",
         type=float,
         default=1.0,
-        help="radius scaling w.r.t. equilibrium r* (1.0 uses the stationary point)",
+        help="uniform scaling relative to the equilibrium edge length",
     )
     ap.add_argument(
         "--outer-mass",
@@ -250,17 +271,153 @@ def select_indices(modes: Iterable[Mode], target: str) -> list[int]:
     return [m.index for m in modes if m.classification == target]
 
 
+# --- Rhombus helpers -----------------------------------------------------
+
+
+def rhombus_equilibrium_angles(tol: float = 1e-10) -> list[float]:
+    """Return all interior angles θ in (0, π) satisfying the rhombus equilibrium.
+
+    The polynomial constraint F(c) = (2c^2 - 1) P(c) = 0 is solved for
+    c = cos(θ/2).  Only real roots with 0 < c < 1 are kept.
+    """
+
+    coeffs_p = [
+        32768.0,
+        0.0,
+        -131072.0,
+        0.0,
+        213248.0,
+        0.0,
+        -180992.0,
+        0.0,
+        84224.0,
+        0.0,
+        -19712.0,
+        0.0,
+        2817.0,
+        0.0,
+        -1281.0,
+        0.0,
+        257.0,
+    ]
+
+    roots = list(np.roots(coeffs_p))
+    roots.extend([np.sqrt(0.5), -np.sqrt(0.5)])
+
+    angles: list[float] = []
+    for root in roots:
+        if abs(root.imag) > tol:
+            continue
+        c = float(root.real)
+        if not (0.0 < c < 1.0):
+            continue
+        theta = 2.0 * float(np.arccos(c))
+        if not (0.0 < theta < np.pi):
+            continue
+        # Deduplicate within tolerance
+        if all(abs(theta - existing) > 1e-8 for existing in angles):
+            angles.append(theta)
+
+    angles.sort()
+    return angles
+
+
+def rhombus_edge_length(theta: float) -> float:
+    """Return equilibrium edge length a(θ) from the analytic formula."""
+
+    c = float(np.cos(theta / 2.0))
+    numerator = 1.0 + (2.0**14) * (c**14)
+    denominator = (2.0**5) * (c**6) * (1.0 + (2.0**8) * (c**8))
+    if denominator <= 0.0:
+        raise ValueError("Invalid angle: cannot construct rhombus edge length")
+    return (numerator / denominator) ** (1.0 / 6.0)
+
+
+def rhombus_vertices(a: float, theta: float) -> np.ndarray:
+    """Return positions of a planar rhombus with side length a and angle θ."""
+
+    verts = np.array(
+        [
+            (0.0, 0.0, 0.0),
+            (a, 0.0, 0.0),
+            (a + a * np.cos(theta), a * np.sin(theta), 0.0),
+            (a * np.cos(theta), a * np.sin(theta), 0.0),
+        ],
+        dtype=float,
+    )
+    verts -= verts.mean(axis=0, keepdims=True)
+    return verts
+
+
+def validate_rhombus(theta: float, a: float, tol: float = 1e-8) -> None:
+    """Ensure both rhombus force-balance conditions are satisfied."""
+
+    c = float(np.cos(theta / 2.0))
+    s = float(np.sin(theta / 2.0))
+    eq1 = 2.0 * c * lj_force_derivative(a) + lj_force_derivative(2.0 * a * c)
+    eq2 = 2.0 * s * lj_force_derivative(a) + lj_force_derivative(2.0 * a * s)
+    if abs(eq1) > tol or abs(eq2) > tol:
+        raise ValueError(
+            "Angle {:.6f} rad ({:.6f}°) is not an LJ rhombus equilibrium".format(
+                theta, np.degrees(theta)
+            )
+        )
+
+
+def format_angle(theta: float, digits: int = 10) -> str:
+    return f"{np.degrees(theta):.{digits}f}"
+
+
 def main() -> None:
     args = parse_args()
 
-    r_star = equilibrium_radius()
-    radius = args.side_scale * r_star
+    if args.config == "triangle_center":
+        r_star = equilibrium_radius()
+        radius = args.side_scale * r_star
+        positions = np.vstack([np.zeros((1, 3)), triangle_vertices(radius)])
+        masses = np.array([args.center_mass] + [args.outer_mass] * 3, dtype=float)
+        config_label = "triangle + center (C3v)"
+        info_lines = [
+            f"r* = {r_star:.8f}",
+            f"radius = {radius:.8f} (scale={args.side_scale})",
+        ]
+        save_metadata = {
+            "radius": radius,
+            "equilibrium_radius": r_star,
+        }
+    else:
+        available = rhombus_equilibrium_angles()
+        if args.config == "rhombus":
+            theta = min(available)
+            config_label = "planar rhombus (D2h)"
+        else:
+            target = np.pi / 2.0
+            theta = min(available, key=lambda ang: abs(ang - target))
+            config_label = "square (D4h)"
 
-    # positions: central particle first, then triangle vertices
-    positions = np.vstack([np.zeros((1, 3)), triangle_vertices(radius)])
+        a_eq = rhombus_edge_length(theta)
+        validate_rhombus(theta, a_eq, tol=1e-8)
+        a = args.side_scale * a_eq
+        positions = rhombus_vertices(a, theta)
+        masses = np.full(4, args.outer_mass, dtype=float)
+        short_diag = 2.0 * a * np.cos(theta / 2.0)
+        long_diag = 2.0 * a * np.sin(theta / 2.0)
+        info_lines = [
+            f"θ = {np.degrees(theta):.9f}°",
+            f"a_eq = {a_eq:.8f}",
+            f"a = {a:.8f} (scale={args.side_scale})",
+            f"short diag = {short_diag:.8f}",
+            f"long diag = {long_diag:.8f}",
+        ]
+        save_metadata = {
+            "theta_deg": float(np.degrees(theta)),
+            "a_equilibrium": a_eq,
+            "a": a,
+            "short_diagonal": short_diag,
+            "long_diagonal": long_diag,
+        }
 
     H = build_hessian(positions)
-    masses = np.array([args.center_mass] + [args.outer_mass] * 3, dtype=float)
     H_mw = mass_weighted_hessian(H, masses)
 
     lam_h, vec_h = np.linalg.eigh(H)
@@ -270,13 +427,18 @@ def main() -> None:
     translations, rotations = symmetry_basis(positions)
     modes = classify_modes(lam_dyn, vec_dyn, args.zero_tol, translations, rotations)
 
-    print("LJ 4-body (triangle + center) mode analysis")
-    print(f"  r* = {r_star:.8f}, radius = {radius:.8f} (scale={args.side_scale})")
-    print(
-        "  masses = [center={:.4f}, vertices={:.4f}]".format(
-            args.center_mass, args.outer_mass
+    print("LJ 4-body mode analysis")
+    print(f"  configuration = {config_label}")
+    for line in info_lines:
+        print(f"  {line}")
+    if args.config == "triangle_center":
+        print(
+            "  masses = [center={:.4f}, vertices={:.4f}]".format(
+                args.center_mass, args.outer_mass
+            )
         )
-    )
+    else:
+        print(f"  masses = vertices={args.outer_mass:.4f}")
     print(f"  zero tolerance = {args.zero_tol:.1e}")
     print()
 
@@ -312,8 +474,7 @@ def main() -> None:
 
     if args.save_json:
         data = {
-            "radius": radius,
-            "equilibrium_radius": r_star,
+            "configuration": config_label,
             "side_scale": args.side_scale,
             "masses": {
                 "center": args.center_mass,
@@ -333,6 +494,7 @@ def main() -> None:
                 for m in modes
             ],
         }
+        data.update(save_metadata)
         with open(args.save_json, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         print(f"Saved JSON: {args.save_json}")
