@@ -1,0 +1,2016 @@
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+Stabilization of a transition state by excited vibration and impact on the reaction rate
+in the three-body Lennard-Jones system
+Yoshiyuki Y. Yamaguchi
+
+*
+
+Graduate School of Informatics, Kyoto University, Kyoto 606-8501, Japan
+(Received 4 September 2024; accepted 7 January 2025; published 11 February 2025)
+The three-body Lennard-Jones system on the plane has a transition state, which is the straight conformation
+located at a saddle point of the potential-energy landscape. We show that the transition state can be dynamically
+stabilized by excited vibration of particle distances. The stabilization mechanism is explained theoretically and
+is verified by performing molecular dynamics simulations. We also examine whether the dynamical stabilization
+gives an impact on the reaction rate between the two isomers of equilateral triangle conformations by comparing
+with the transition-state theory.
+DOI: 10.1103/PhysRevE.111.024204
+
+I. INTRODUCTION
+
+The state is said to be unstable if the potential energy
+landscape takes a saddle or a local maximum at the corresponding state. A typical example is the inverted pendulum
+under the gravity. However, dynamics may change stability,
+and the inverted pendulum is stabilized by applying fast small
+oscillation of the pivot in the vertical direction. This pendulum
+is known as the Kapitza pendulum [1–4]. The essence of this
+dynamical stabilization is existence of multiple scales in time
+and space: The averaged fast small motion gives an additional
+term to the potential energy landscape, and the effective potential for slow motion may have a local minimum at the
+inverted position. Interestingly, the vertical motion of the pivot
+contributes to the stabilization in the orthogonal rotational
+direction.
+The Kapitza pendulum is a nonautonomous system, but
+dynamical stabilization has been generalized to autonomous
+Hamiltonian systems [5,6]. Consider a chainlike model consisting of three beads and two springs, where two nearby
+beads are connected by a spring [7]. Comparing with the
+Kapitza pendulum, the two springs play the role of the
+oscillating pivot, and the angle between the two springs corresponds to the pendulum angle. Focusing on the angle motion,
+we can reduce the full system to a one-degree-of-freedom
+system, and the reduced part provides an additional potential,
+which may change the stability ruled by the bare potential
+energy landscape. This phenomenon is named by the dynamically induced conformation (DIC). It might be worth
+mentioning that vibration in the radial direction stabilizes the
+orthogonal rotational direction as the Kapitza pendulum.
+DIC is firstly observed in numerical simulations of chainlike bead-spring systems [8], and is explained theoretically
+in three-body system [5] and later in N-body systems [6] by
+using the multiple-scale analysis [9] and the averaging method
+[10–12]. A remarkable difference of DIC from the Kapitza
+
+*
+
+Contact author: yyama@amp.i.kyoto-u.ac.jp
+
+2470-0045/2025/111(2)/024204(13)
+
+pendulum is that the stabilization depends on excited modes
+of the vibration: The mode having the lowest eigenfrequency
+contributes to the stabilization, and contribution to the destabilization emerges by exciting higher eigenfrequency modes
+[5,6].
+The previous studies on DIC have two restrictions: (i) the
+system should be chainlike and (ii) the bending potential
+which determines conformation is separately introduced in
+addition to the spring potential. Due to these restrictions, a
+system is out of range which has pairwise potentials but has no
+explicit bending potential, although such a system is important
+to study. For instance, the Lennard-Jones potential [13–15] is
+frequently used to model the intermolecular interaction.
+In this article, we consider the three-body Lennard-Jones
+system on the plane, which is not a chainlike model but a
+ringlike model. The system has two minima, each of which
+corresponds to an equilateral triangle. Let the beads be named
+by A, B, and C. One triangle is ABC and the other is ACB.
+Due to two-dimensionality, between the two minima, there
+exists a transition state at which conformation is straight. The
+transition state is located at a saddle point of the potential
+energy landscape, but stabilization of the transition state is
+numerically observed and phenomenologically analyzed [16].
+One of the aims of this article is to give a systematic explanation to the numerically observed stabilization by resulting in
+DIC. The other aim is to examine if DIC modifies the reaction
+rate, which is predicted by the transition state theory (TST)
+[17–24].
+The three-body Lennard-Jones system on the plane is a
+simple model of isomerization, and it is a first step to deeply
+understand dynamical effects of isomerization in complex
+molecules. For example, excited mode dependence of isomer
+population has been examined experimentally [25,26]. Further, related dynamical effects have been observed in atomic
+clusters by considering the internal coordinates [27–30].
+This paper is organized as follows. The three-body
+Lennard-Jones system is introduced and the potential energy
+landscape is analyzed in Sec. II. We show in Sec. III that the
+essence of DIC, separation of temporal and spatial scales, is
+
+024204-1
+
+©2025 American Physical Society
+
+YOSHIYUKI Y. YAMAGUCHI
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+FIG. 1. Schematic figure of the three-body system with the definitions of l1 , l2 , l3 , and φ.
+
+realized intrinsically in the three-body Lennard-Jones system.
+Dynamically induced stability is studied in Sec. IV, and is
+examined in numerical simulations in Sec. V. The reaction
+rate is reported in Sec. VI. The last section VII is devoted to
+summary.
+II. MODEL
+
+We consider the three-body Lennard-Jones system on R2 .
+The system is described by the Lagrangian
+1
+m||r˙i ||2 − V (r),
+2 i=1
+3
+
+L(r, ṙ) =
+
+(1)
+
+where ri ∈ R2 is the position of the ith mass, ṙi = dri /dt, || · ||
+is the Euclidean norm, t is the time, and r = (r1 , r2 , r3 ). We
+assume that the three masses are identical. The total potential
+energy V consists of pairwise interactions as
+V (r) = ULJ (l1 ) + ULJ (l2 ) + ULJ (l3 ),
+
+(2)
+
+FIG. 2. Lennard-Jones potential (purple solid line). The lengths
+at a straight conformation are l1 = l2 = l ‡ and l3 = 2l ‡ , which are
+marked by the vertical black lines. The green broken curve represents
+the harmonic approximation around the bottom point.
+
+We reduce the translational symmetry by introducing the
+internal coordinates y = (y1 , y2 , y3 , y4 ) = (l1 , l2 , φ, φL ). The
+angle φ is the bending angle between r2 − r1 and r3 − r2 .
+For instance, φ = 0 represents a straight conformation (see
+Fig. 1). The last angle variable φL is associated with the total
+angular momentum, which is another integral of the system.
+The length l3 is written as a function of (l1 , l2 , φ) as
+l32 = l12 + l22 + 2l1 l2 cos φ.
+
+(7)
+
+The total potential energy V is read as
+V (y) = ULJ (l1 ) + ULJ (l2 ) + ULJ
+
+where
+l1 = ||r1 − r2 ||,
+
+l2 = ||r2 − r3 ||,
+
+l3 = ||r3 − r1 ||.
+
+(3)
+
+A schematic figure of the system is shown in Fig. 1.
+The pairwise potential ULJ is the Lennard-Jones potential
+ 12  6 
+σ
+σ
+,
+(4)
+−
+ULJ (l ) = 4LJ
+l
+l
+where σ and LJ are real positive parameters. The equations of
+motion are
+ 
+ 6 
+3
+σ 12
+d 2 ri
+4LJ  ∂
+σ
+=−
+−
+, (i = 1, 2, 3)
+2
+dt
+m j=1 ∂ri
+lj
+lj
+(5)
+and the values of σ and LJ /m are not essential, because we
+can set them as unity by rescaling the space ri and the time
+t. Landscape of the Lennard-Jones potential is illustrated in
+Fig. 2. It has the minimum value ULJ (lmin ) = −LJ at
+lmin = amin σ,
+
+amin = 21/6 = 1.122 · · · .
+
+(6)
+
+A. Internal coordinates
+
+The system has the translational symmetry and the rotational symmetry. The associated integrals are the total
+momentum vector and the total angular momentum. We set
+them as zero.
+
+l12 + l22 + 2l1 l2 cos φ .
+(8)
+The Lagrangian in the internal coordinates is
+1  αβ
+B (y)ẏα ẏβ − V (y),
+2 α,β=1
+4
+
+L(y, ẏ) =
+
+(9)
+
+where Bαβ (y) is the (α, β ) element of the matrix B(y). See
+Appendix A for the explicit expression of B(y). The variable
+φL is not crucial since it is a cyclic coordinate associated with
+the rotational symmetry. Hereafter, we omit the angle φL , and
+use the same symbol y for y = (y1 , y2 , y3 ) = (l1 , l2 , φ).
+B. Stationary points of V
+
+The potential V has two minima and three saddle points.
+The two minima are located at (l1 , l2 , φ) = (lmin , lmin , 2π /3)
+and (lmin , lmin , −2π /3), which correspond to the equilateral
+triangle and the inverse equilateral triangle conformations.
+Between the two minima, there exists a saddle at y‡ =
+(l ‡ , l ‡ , 0), which represents a straight conformation and which
+we focus on. We omit two other saddles (straight conformations) since they are obtained by changing the order of masses.
+The length l ‡ satisfies the stationarity condition
+
+024204-2
+
+∂V ‡
+
+
+(y ) = ULJ
+(l ‡ ) + ULJ
+(2l ‡ ) = 0,
+∂li
+
+i = 1, 2
+
+(10)
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+where
+
+⎛
+
+⎞
+⎛
+0
+1
+⎟
+⎜
+
+‡
+0⎠ + ULJ (2l )⎝1
+0
+0
+⎛
+⎞
+0 0 0
+
+‡
+U (2l )
+⎜
+⎟
+− LJ ‡ (l ‡ )2 ⎝0 0 0⎠
+2l
+0 0 1
+
+1
+‡
+ ‡ ⎜0
+HV (y ) = ULJ (l )⎝
+0
+
+0
+1
+0
+
+1
+1
+0
+
+⎞
+0
+0⎟
+⎠
+0
+
+(14)
+
+FIG. 3. Potential energy landscape of the three-body LennardJones system on the section l2 = l1 , i.e. V (l1 , l1 , φ). (a) Contours
+(curves), two minima (purple circles), and a saddle (green diamond). Conformations are presented by blue beads and lines. The
+red rectangle is the region in which we are interested. (b) Potential
+V (l ‡ , l ‡ , φ)/LJ as a function of φ. The slope is of O( 2 ) since V (y) −
+V (y‡ ) = O( 2 ) in the interested region. (c) Potential V (l1 , l1 , 0)/LJ
+as a function of l1 . The slope is of O() in the interested region. See
+Eq. (17) for the definition of the small parameter .
+
+since l3 = 2l at the saddle (see Fig. 2). The length l is
+
+1/6
+1 2(213 + 1)
+‡
+l = aσ, a =
+= 1.121 . . .
+(11)
+2
+27 + 1
+‡
+
+‡
+
+We note that l ‡ is smaller than and close to lmin . The values of
+V (y) at the minima and the saddle are
+V (lmin , lmin , ±2π /3)
+= −3,
+LJ
+
+‡
+
+V (y )
+≃ −2.031124. (12)
+LJ
+
+The two minima and the saddle y‡ , which is a transition
+state, are illustrated in Fig. 3 with a contour map of V (l1 , l2 , φ)
+on the section l2 = l1 . The straight conformation is unstable
+for the φ direction with respect to the bare potential V , the
+conformation can be stabilized by fast vibration of l1 and l2
+however: This is DIC.
+
+is the Hessian of V at y = y‡ .
+The Hessian matrix implies that the timescale τl of li is
+determined by the first and the second terms of HV , and that
+the timescale τφ of φ by the third term. In the third term we extracted (l ‡ )2 to adjust the physical dimension. The coefficients
+are estimated as
+ ‡
+(l ) =
+ULJ
+
+(2l ‡ ) =
+ULJ
+
+24LJ 26 − 7(2a)6
+24LJ
+≃ 12 ‡ 2 (−0.05268),
+12
+‡
+2
+14
+a (l )
+2
+a (l )
+
+
+ULJ
+(2l ‡ )
+24LJ 2 − (2a)6
+24LJ
+= − 12 ‡ 2
+≃ 12 ‡ 2 0.00763.
+‡
+2l
+a (l )
+214
+a (l )
+
+(15)
+ ‡
+
+(l ) dominates the second term ULJ
+(2l ‡ ),
+The first term ULJ
+and the timescales are estimated as
+
+
+m
+m
+,
+τ
+.
+(16)
+=
+τl =
+φ
+ (l ‡ )
+ (2l ‡ )/(2l ‡ )
+ULJ
+ULJ
+
+Separation of the two timescales is now clear and we introduce
+a small dimensionless parameter  as
+
+ (2l ‡ )/(2l ‡ )
+ULJ
+τl
+=
+≃ 0.0251.
+(17)
+=
+ (l ‡ )
+τφ
+ULJ
+The small parameter  introduces multiple timescales:
+the fast timescale t0 = t corresponding to τl and the slow
+timescale t1 = t corresponding to τφ . We consider that t0 and
+t1 are independent variables. The time derivative is expanded
+as
+∂
+d
+∂
++ .
+=
+dt
+∂t0
+∂t1
+
+III. MULTISCALE ANALYSIS
+
+The essential mechanism of DIC is separation of temporal
+and spatial scales. In the previous studies [5,6], to realize
+slow bending motion of φ, the total potential is composed
+of the spring potential Vspring (l1 , l2 ) and the bending potential
+ 2Vbend (φ), where  is a small dimensionless parameter  (0 <
+  1). We demonstrate that the three-body Lennard-Jones
+system induces, intrinsically, the separation of scales and a
+bending potential of O( 2 ) around the transition state y‡ .
+
+24LJ
+24LJ
+(26 − 7a6 ) ≃ 12 ‡ 2 12.1068,
+a12 (l ‡ )2
+a (l )
+
+(18)
+
+B. Spatial scale and potential forces
+
+For the dependent variables, we are interested in a region
+close to the transition state y‡ and, from Fig. 3, we expand
+them as
+li (t0 , t1 ) = l ‡ + li(1) (t0 , t1 ),
+
+i = 1, 2
+
+φ(t0 , t1 ) = φ (t1 ) + φ (t0 , t1 ),
+(0)
+
+A. Separation of timescales
+
+We estimate the timescales around the transition state y‡
+by considering the linearized equations of motion. The Taylor
+expansion of the total potential V around y‡ gives
+∇V (y) = HV (y‡ )(y − y‡ ) + · · · ,
+
+(13)
+
+(1)
+
+(19a)
+(19b)
+
+which is simply denoted by
+y(t0 , t1 ) = y(0) (t1 ) + y(1) (t0 , t1 ).
+
+(20)
+
+Smallness of |li(1) | is realized by selecting suitable initial
+conditions.
+
+024204-3
+
+YOSHIYUKI Y. YAMAGUCHI
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+We consider the potential force again, which is expanded
+as
+∇V (y) = (∇V (y))(1) +  2 (∇V (y))(2) + · · · ,
+
+(21)
+
+where, for an arbitrary function A(y), (A(y))(n) represents the
+O( n ) part of A(y). From Eqs. (13), (14), and (17), we have
+⎛ (1) ⎞
+l1
+⎜ ⎟
+(1)
+ ‡ ⎜ (1) ⎟
+(22)
+(∇V (y)) = ULJ (l )⎝l2 ⎠
+0
+and
+
+⎛ ⎞
+∗
+ ‡
+(∇V (y))(2) = −ULJ
+(l )(l ‡ )2 ⎝ ∗ ⎠.
+φ
+
+The expansions (18), (19), and (22) are the same as ones
+used in the previous analyses [5,6], whereas the three-body
+Lennard-Jones system does not satisfy the two restrictions
+mentioned in Sec. I. Therefore, DIC should be reproduced
+around the transition state y‡ .
+Let us revisit the origin of the above expansions. The two
+timescales and (∂V/∂φ)(1) = 0 are induced from smallness of
+the ratio (17). Thus, we may expect emergence of DIC in
+other systems apart from the Lennard-Jones potential, if the
+pairwise potential U has a steep well [i.e. large U  (l ‡ )] and
+a gradual tail [i.e. small U  (2l ‡ )/(2l ‡ )]. A harmonic potential U (l ) = k(l − σ )2 /2 is out of this scope, since U  (l ‡ ) =
+U  (2l ‡ ) = k and U  (2l ‡ )/(2l ‡ ) = k/4 are of the same order,
+where the stationary length l ‡ satisfying Eq. (10) is l ‡ =
+2σ /3.
+IV. DYNAMICAL STABILITY OF THE TRANSITION STATE
+
+Along computations performed in [5,6], we can reduce the
+three-dimensional dynamical system of (l1 , l2 , φ) to the onedimensional dynamical system of φ (0) (t1 ), which appears in
+O( 2 ). We sketch the derivation. See Appendix B for details.
+In O(), we have linear equations of motion for fast motion
+of l1(1) and l2(1) . The two lengths l1 and l2 extend and contract
+simultaneously in the in-phase mode (mode-I) and alternatively in the antiphase mode (mode-II). If we modify l1 and
+l2 initially from the equilibrium value l ‡ as
+(i = 1, 2),
+
+(24)
+
+the initial values of the mode-I energy EI and the mode-II
+energy EII are
+ ‡
+(l )
+ULJ
+(δl1 + δl2 )2 ,
+4
+
+EII =
+
+∂V ‡ ‡ (0)
+Enormal
+(l , l , φ ) −
+T (φ (0) ).
+∂φ
+2
+
+(26)
+
+We remark that the potential force ∂V/∂φ in Eq. (26) is of
+O( 2 ) from Eqs. (22) and (23), and Enormal = EI + EII is also
+of O( 2 ) from (25). The function T (φ (0) ) is defined by
+
+
+νI
+νII
+. (27)
+T (φ (0) ) = sin φ (0)
+−
+2 − cos φ (0)
+2 + cos φ (0)
+Integrating the effective force (26), we have the effective
+potential Veff (φ) for the angle φ as
+
+C. Universality
+
+EI =
+
+ 2 Feff (φ (0) ) = −
+
+(23)
+
+The asterisk parts are not important in the later discussions
+and we neglect them. The bending potential depending on φ
+appears from O( 2 ) without any artificial scalings. The two
+scales of ∇V can be understood graphically in Fig. 3 with the
+fact V (y) − V (y‡ ) = O( 2 ) around y‡ .
+
+li = l ‡ + δli ,
+
+We hypothesize that the ratio between the two normal-mode
+energy EI and EII is constant in time [5,6], and introduce νI :
+νII = EI : EII with νI + νII = 1.
+The equation of motion for φ (0) (t1 ) is obtained in O( 2 ),
+which includes the fast motion of l1(1) (t0 , t1 ) and l2(1) (t0 , t1 ).
+Performing the averaging over the fast timescale t0 , we can
+eliminate the initial phases of the two normal modes, but
+cannot eliminate the energy ratios, νI and νII . This is the origin
+of the excited mode dependence in DIC.
+The above-mentioned averaging induces an extra force to
+φ (0) (t1 ) in addition to the potential gradient. The effective
+force Feff of O( 0 ) to the slow motion of φ (0) (t1 ) is expressed
+as
+
+ ‡
+(l )
+ULJ
+(δl1 − δl2 )2 .
+4
+(25)
+
+Enormal
+[νI log(2 − cos φ)
+2
++ νII log(2 + cos φ)].
+(28)
+
+Veff (φ) = V (l ‡ , l ‡ , φ) +
+
+Examples of the effective potential Veff are shown in Fig. 4.
+The in-phase mode stabilizes the straight conformation φ =
+0, while the antiphase mode enhances instability. This mode
+dependence is the same as the chainlike model [5,6]. The bare
+potential V is of O( 0 ) and Enormal is of O( 2 ), the additional
+potential function is visible however for |δi |/σ ≃ 0.05, since
+ ‡
+(l )/4 appearing in (25) gives a factor
+ULJ
+ ‡
+LJ
+(l )
+ULJ
+≃ 2 14.6737
+4
+σ
+
+(29)
+
+and Enormal /LJ is around 0.15.
+We remark an important modification from the previous
+work [5]. In the previous work, the normal mode energy
+Enormal is eliminated in the effective potential Veff (φ) by using the total energy conservation, which includes energy of
+φ (0) motion. The total energy conservation provides a global
+effective potential under the hypothesis that the ratio νI : νII
+is constant of time globally. In other words, the obtained
+effective potential is valid for any value of φ. The constant
+ratio hypothesis is not bad in a chainlike model, but it is not
+good in the three-body Lennard-Jones system if φ is far from
+0, because thermalization occurs easily (see Sec. V D for a
+numerical test and Sec. VI for a success of a statistical theory). Therefore, we concentrate on a neighborhood of φ = 0
+in which the hypothesis should be valid, and the effective
+potential (28) is valid only around φ = 0.
+Stability of the transition state y‡ = (l ‡ , l ‡ , 0) is determined by the signature of
+
+024204-4
+
+
+Veff
+(0) =
+
+∂ 2V ‡
+3νI − νII
+Enormal .
+(y ) +
+2
+∂φ
+6
+
+(30)
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+where
+δl12 + δl22 + 4δl1 δl2
+(32)
+σ2
+plays the role of the stability index: S > 0 (S < 0) means
+ ‡
+(l ) > 0. The constant term is
+stable (unstable) since ULJ
+S = −12 2 a2 +
+
+12 2 a2 ≃ 0.0095.
+
+(33)
+
+V. MOLECULAR DYNAMICS SIMULATIONS
+
+We examine the theoretical stability S > 0 [see Eq. (32)]
+by comparing it with molecular dynamics (MD) simulations.
+We set m = 1, σ = 1, and LJ = 1 without loss of generality
+by rescaling the time t and space ri in the equations of motion
+(5), although we keep the symbols to clarify the source. MD
+simulations are performed by using the 4th order symplectic
+integrator [31] with the timestep t = 10−3 to keep the symplectic structure and to realize high precision.
+A. Initial condition
+
+The initial velocities of particles are zero, ṙi = 0 (i =
+1, 2, 3), and the initial momenta are zero accordingly. The
+initial positions are shifted from the saddle point as
+⎞
+⎞ ⎛
+⎞ ⎛
+⎞ ⎛
+⎛
+−δy/2
+y1 (0)
+−l ‡ + δx1
+x1 (0)
+⎟
+⎟ ⎜
+⎟ ⎜
+⎟ ⎜
+⎜
+⎝x2 (0)⎠ = ⎝−δx1 − δx3 ⎠, ⎝y2 (0)⎠ = ⎝ δy ⎠.
+−δy/2
+x3 (0)
+y3 (0)
+l ‡ + δx3
+(34)
+The displacements δx1 and δx3 are transformed to δli as
+δl1 = −2δx1 − δx3 ,
+
+δl2 = δx1 + 2δx3 ,
+
+(35)
+
+and we vary δl1 /σ and δl2 /σ . δy = 10−3 is given as a perturbation to modify the value of φ from zero. If δl1 = δl2 = δy =
+0, the state is exactly at the transition state and no temporal
+evolution occurs.
+B. Temporal evolution
+
+FIG. 4. Effective potential Veff (φ). Bare potential V (red solid),
+effective potential Veff with |δl1 |/σ = |δl2 |/σ = 0.05 (green broken), and 0.1 (blue dot-dashed). (a) In-phase mode (νI , νII ) = (1, 0).
+(b) Equally mixed mode (νI , νII ) = (1/2, 1/2). (c) Antiphase mode
+(νI , νII ) = (0, 1).
+
+It is clear that the in-phase mode (mode-I) contributes to
+stabilization, and that the antiphase mode (mode-II) to desta
+(0) as
+bilization. Using Eqs. (2), (7), and (25), we modify Veff
+
+(0) =
+Veff
+
+σ 2  ‡
+U (l )S,
+12 LJ
+
+(31)
+
+First, we observe temporal evolution of l3 /l ‡ , shown in
+Fig. 5. The quantity l3 /l ‡ is close to 2 if the system stays
+around the straight conformation (a transition state), and is
+close to 1 if the system is around an equilateral triangle
+conformation (a minimum). In other words, l3 /l ‡ ≃ 2 implies
+stabilization of the transition state, and l3 /l ‡ ≃ 1 implies nonstabilization.
+The initial excitation of the normal modes is controlled
+by the signs of δli : EI > EII if the signs are the same, and
+EI < EII if the signs are opposite. In Figs. 5(a) and 5(d),
+the antiphase mode (mode-II) is dominant as EI /EII = 1/9,
+and the straight conformation is not stabilized. However, in
+Figs. 5(b) and 5(c), the in-phase mode (mode-I) is dominant
+as EI /EII = 9, and the straight conformation is stabilized up
+to t ≃ 600 at least. Temporal evolution of l3 /l ‡ is consistent
+with the effective potential shown in Fig. 4. To clarify a qualitative difference of dynamics between a nonstabilized saddle
+and a stabilized one, power spectra of l1 (t ) are reported in
+Appendix C.
+Asymmetry between Figs. 5(b) and 5(c) is explained as
+follows. The Lennard-Jones potential has a steeper wall in
+
+024204-5
+
+YOSHIYUKI Y. YAMAGUCHI
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+FIG. 5. Temporal evolution of l3 /l ‡ . (δl1 /σ, δl2 /σ ) is (a) (−0.1, 0.05), (b) (0.1, 0.05), (c) (−0.1, −0.05), and (d) (0.1, −0.05). The blue
+l3,min (102 ) in (c) [see Eq. (36) for 
+l3,min (T )]. The theoretical
+horizontal line represents 
+l3,min (103 ), and the green short horizontal line represents 
+stability index S is S = −0.017 for (a) and (d), and S = 0.023 for (b) and (c).
+
+the contracting direction δli < 0 than the extending direction δli > 0 as shown in Fig. 2. Nonlinear effects are hence
+stronger in Fig. 5(c) than in Fig. 5(b), while the theory cannot
+capture them since it approximates Enormal by a harmonic
+potential. See also the green broken curve in Fig. 2.
+C. Stability diagram
+
+Stability is explored at each sample point on the plane
+(δl1 /σ, δl2 /σ ) by computing
+l3 (t )
+
+.
+l3,min (T ) = min
+t∈[0,T ] l ‡
+
+(36)
+
+We set T = 102 and T = 103 in Figs. 6(a) and 6(b) respectively. The theoretical prediction by the index S is shown
+in Fig. 6(c). Numerical observation is almost in good agreement with the theoretical prediction. The in-phase (antiphase)
+mode axis runs from the left-lower (right-lower) corner to
+the right-upper (left-upper) corner. Excitation of the in-phase
+mode stabilizes the straight conformation if the excitation is
+sufficiently strong, as we have observed in previous works
+[5,6].
+Slight discrepancies between numerical observation and
+the theoretical prediction observed along the in-phase mode
+
+axis in particular is again explained by asymmetry of the
+Lennard-Jones potential in the contracting and extending directions. Indeed, the total energy is asymmetric [see Fig. 6(d)].
+Enormal is underestimated in the contracting direction, while
+it is overestimated in the extending direction. The theoretical
+underestimation (overestimation) induces that numerical simulations gain (lose) stability around the boundary of stability.
+The same analysis is performed in Fig. 7 for a wider range
+of δl1 and δl2 . A larger |δli | gives a large value of the total
+energy and induces frequent evaporation. Nevertheless, DIC
+emerges in a upper-right region in particular. Validity of the
+expansion, Eq. (19a), is no longer guaranteed in such a wider
+range, but stabilization of the transition state is captured in a
+short time regime except for the evaporation.
+D. Test of hypothesis
+
+We close this section by performing a numerical test of
+the hypothesis: The ratio νI : νII is constant of time. The
+initial condition is (δl1 , δl2 ) = (−0.07, −0.08), which gives
+stability of the transition state only in a short term (see Fig. 6).
+The expressions of EI and EII [see Eqs. (B19) and (B20)]
+are derived by the harmonic approximation, but this approximation is not excellent if |δl1 | and |δl2 | are large (see Fig. 2).
+
+024204-6
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+FIG. 6. Stability of the transition state. (a) 
+l3,min (T = 102 ).
+3
+
+
+
+(b) l3,min (T = 10 ). Note l3,min ≃ 2 (l3,min ≃ 1) implies that the transition state is (is not) stabilized. In (a) and (b) the color bar starts from
+0, where 0 is assigned to evaporation of a particle. (c) Theoretical
+stability index S × 102 . Color bar range is truncated. S > 0 predicts
+emergence of DIC (dynamical stabilization). (d) Total energy.
+
+We then compute νI and νII as time averages of relative amplitudes [l1(1) + l2(1) ]2 and [l1(1) − l2(1) ]2 respectively. The averages
+are taken in each time window of length 5. For instance, the
+nth point of νI , denoted by νI (n), is defined by
+
+1 5(n+1)
+[l1 (t ) + l2 (t ) − 2l ‡ ]2 dt.
+(37)
+νI (n) =
+5 5n
+Temporal evolution of νI and νII is reported in Fig. 8
+with temporal evolution of φ. They are almost constant when
+φ ≃ 0, and go away after t ≃ 800, at which the system moves
+
+FIG. 7. Same as Fig. 6, but in a wider region of (δl1 /σ, δl2 /σ ).
+In panels (a) and (b), evaporation occurs at points where the color
+bar is 0 (yellow). Color bar range is truncated in all panels.
+
+FIG. 8. Hypothesis test. The initial condition is (δl1 , δl2 ) =
+(−0.07, −0.08). (a) Averaged temporal evolution of νI (blue circles)
+and νII (green crosses). (b) Temporal evolution of φ. Two horizontal
+black lines mark ±2π /3 corresponding to the equilateral triangles.
+
+away from the transition state. We hence conclude that the
+hypothesis is valid while stabilization of the transition state is
+realized.
+VI. REACTION RATE
+
+The transition state can be stabilized by the fast motion
+of l1 and l2 . The next question is whether the stabilization
+changes the reaction rate statistically. To answer this question,
+we compute the reaction rate by TST and MD simulations.
+The reaction rate is defined as the decrease in reactant (the
+increase in product) per unit time.
+TST is a theory to explain the reaction rate by using statistical mechanics. The idea of TST is as follows. We introduce
+a dividing surface that divides the reactant and the product
+in the phase space. Then, we compute the ratio between two
+phase volumes: the volume which passes the dividing surface
+within the unit time, and the phase volume of the reactant.
+A more precise explanation is as follows. Let the three
+bodies be A, B, and C. In our setting, the reactant is, for
+instance, the triangle ABC, and the product is the triangle
+ACB. Let us denote the Hamiltonian of the system by H (y, p).
+TST gives an expression of the reaction rate k(E ) for total
+energy E by
+
+3 φ̇>0 δ(E − H (y, p))δ(φ)φ̇dyd p
+
+k(E ) =
+.
+(38)
+1
+δ(E − H (y, p))dyd p
+2
+For the reaction route which passes the transition state y‡ =
+(l ‡ , l ‡ , 0), we may set the dividing surface as φ = 0, and
+the numerator represents the flux passing the dividing surface in the unit time from one side to the other. The factor
+3 counts the three routes of isomerization associated with
+the three transition states. The denominator is the half of the
+phase space volume for total energy E , which corresponds to
+the phase space volume of the reactant by symmetry. Concrete
+expressions of H (y, p), momenta p = (p1 , p2 , p3 ), and φ̇ are
+reported in Appendix D. Recall that the total angular momentum is set as zero.
+
+024204-7
+
+YOSHIYUKI Y. YAMAGUCHI
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+VII. SUMMARY
+
+FIG. 9. Reaction rate k(E ) as a function of E /LJ , where E is
+the total energy. The lines represent the transition state theory with
+P = 2 (purple broken) and P = 3 (green solid). Points are from direct
+molecular dynamics simulations with T = 104 (blue crosses) and
+T = 105 (orange circles). The vertical line marks the total potential
+energy at the transition state, V (y‡ )/LJ ≃ −2.03.
+
+To compute k(E ) of Eq. (38) numerically, we truncate
+the phase space as l1 , l2 ∈ [0.8, 3], φ = [0, 2π ), p1 , p2 , p3 ∈
+[−P, P]. We examine P = 2 and P = 3 to confirm that P = 3
+is sufficiently large. On each truncated axis 100 points are
+equally distributed, and the value of H (y, p) and the weight
+φ̇ are computed totally at 1012 points. Finally, we make a
+histogram with respect to E by dividing the interval E ∈
+[−3, −1] into 100 bins, where the representative point of
+the ith bin is Ei = −3 + 2(i + 0.5)/100 (i = 0, . . . , 99). We
+neglected E > −1 since a particle may evaporate.
+The reaction rate k(E ) is also computed by following the
+definition and performing direct MD simulations. The initial
+condition is the one introduced in Sec. V A with the constraint
+δl2 = −δl1 to make the transition state unstable. The total
+energy E depends on δl1 . The reaction rate k(E ) is obtained
+as k(E ) = N (E , T )/T , where N (E , T ) is the number of isomerization during the time interval t ∈ [0, T ], and we set the
+computing time T as T = 104 and T = 105 . We remark that
+this reaction rate counts isomerizations from ABC to ACB
+and from ACB to ABC, while Eq. (38) considers only from
+ABC to ACB. We can define a corresponding reaction rate in
+dynamics by discarding the periods in which the system is in
+the well of ACB. However, this modification reduces T and
+N (E , T ) by half from symmetry, and we keep all the periods
+to enrich statistics.
+The reaction rate k(E ) is reported in Fig. 9. First, we
+confirm that P = 3 is sufficiently large for obtaining the theoretical precision, since the line with P = 3 collapses on the
+line with P = 2. Second, by a similar reason, T = 105 is
+sufficiently large for obtaining the reaction rate by MD simulations. Therefore, we conclude that the theoretical prediction
+slightly underestimates the dynamical result for −1.6  E <
+−1. However, the theoretical prediction is not far from MD,
+and the dynamical stabilization does not strongly affect the
+reaction rate in the three-body Lennard-Jones system irrespective of emergence of dynamical (de)stabilization.
+
+Dynamically induced conformation (DIC) is a stabilization
+mechanism of an unstable conformation with respect to a bare
+potential energy landscape, and it is an analogy of the Kapitza
+pendulum in autonomous systems. DIC has been previously
+studied in chainlike bead-spring models with an artificially
+induced weak bending potential function [5,6]. This article
+demonstrated that in the three-body Lennard-Jones potential,
+the transition state (a straight conformation) is also dynamically stabilized, although the system is neither a chainlike
+system nor introducing any artificial potential. DIC in the
+three-body Lennard-Jones system is based on the fact that
+the potential has a steep well and a gradual tail, and we may
+expect emergence of DIC in a similar system, while a system
+with a harmonic pairwise potential is out of the range of the
+present theory.
+We can derive an effective potential, which is the sum
+of the bare potential and the dynamical effect in the direction of conformation change. The steep well provides a large
+prefactor in the dynamically induced term, and it becomes
+comparable with instability strength of the bare potential.
+However, the dynamical stabilization depends on the excited
+mode: the in-phase mode contributes to stabilize the transition
+state, while the antiphase mode contributes to enhance the
+instability, as shown in the previous studies [5,6].
+To answer whether the dynamical (de)stabilization has a
+statistical impact, we compared the reaction rate computed
+from the transition state theory and from direct MD simulations. The impact of dynamical (de)stabilization is not
+remarkable. A possible explanation is coexistence of stabilization and destabilization depending on the normal mode
+energy, which may be thermalized when the system visits a
+well. Nevertheless, it might be interesting to study whether the
+small discrepancy between the theory and MD is physically
+meaningful.
+Dynamics of the three-body Lennard-Jones system is considered as the isolated system in this article. It is worth
+studying DIC with thermal noises, since they are not avoidable
+in a real system. The essence of DIC is separation of scales in
+time and space, and, hence, we may expect emergence of DIC
+even under thermal noises. Another extension of the present
+theory is a control of molecules by applying an external force
+and by using the effective local minimum around the transition
+state. Such a study may give a hint to solve the excited mode
+dependence of isomer population [25,26].
+ACKNOWLEDGMENTS
+
+The author thanks Y. Shimizu for private communications
+which informed the existence of a stabilized transition state.
+This work is inspired by these communications. The author
+acknowledges the support of JSPS KAKENHI Grant No.
+JP21K03402.
+APPENDIX A: THE MATRIX B
+AND THE INVERSE MATRIX
+
+In this section, we use the symbol y = (l1 , l2 , φ, φL ) for the
+internal coordinates. The matrix B(y) is of 4 × 4 accordingly.
+
+024204-8
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+We divide the matrix B(y) into 2 × 2 matrices as
+
+
+Bll (y) Blφ (y)
+,
+B(y) =
+Bφl (y) Bφφ (y)
+where
+
+
+2
+m
+Bll (y) =
+3 cos φ
+
+cos φ
+
+(A1)
+
+
+,
+
+2
+
+
+m − 21 l2 sin φ
+Blφ (y) =
+3 − 21 l1 sin φ
+
+APPENDIX B: EULER-LAGRANGE EQUATIONS
+
+−l2 sin φ
+
+(B1)
+associated with the Lagrangian (9) into a power series of the
+small parameter . Here,
+∂Bαβ
+1 ∂Bβγ
+Dαβγ (y) =
+(y) −
+(y), α, β, γ = 1, 2, 3, 4.
+∂yγ
+2 ∂yα
+(B2)
+
+
+,
+
+l1 sin φ
+
+Bφl (y) = Blφ (y)T ,
+⎛
+1 2
+2
+m ⎝2 l1 + l2 − l1 l2 cos φ
+Bφφ (y) =
+l22 − l12
+3
+
+1. Expansion of the equations
+
+⎞
+
+l22 − l12
+2 l12 +l22 +l1 l2 cos φ
+
+⎠.
+
+(A2)
+The inverse matrix of B(y) is
+[B(y)]
+where
+
+
+
+2
+1
+
+Bll (y) =
+m − cos φ
+1
+
+Blφ (y) =
+m
+
+1
+
+sin φ
+l2
+1
+sin φ
+l1
+
+−1
+
+We use the 4 × 4 matrix B(y) introduced in Appendix A.
+We expand the Euler-Lagrange equations
+4
+4
+
+
+∂V
+Bαβ ÿβ +
+Dαβγ ẏβ ẏγ +
+= 0, α = 1, 2, 3, 4,
+∂y
+α
+β=1
+β,γ =1
+
+
+
+
+
+Blφ
+,
+
+Bφφ
+
+
+Bll
+=
+
+Bφl
+
+Substituting Eqs. (18), (20), and (21) into Eq. (B1), we
+have the equations of motion in each order of :
+
+(0)
+∂V
+0
+O( ) :
+(y)
+= 0, (B3a)
+∂yα
+
+(1)
+4
+
+∂ 2 yβ(1)
+∂V
+O( 1 ) :
+Bαβ (y(0) )
++
+(y)
+= 0, (B3b)
+∂yα
+∂t02
+β=1
+
+(A3)
+O( 2 ) :
+
+
+
+
++
+
+
+
+
+Blφ (y) ,
+Bφl (y) = 
+⎛
+2
++ l22 + l12l2 cos φ
+l12
+1
+2
+⎜
+
+Bφφ (y) = ⎝
+1
+− l12
+m
+l2
+
+Bαβ (y(0) ) ÿβ
+
+(2)
+
+∂V
+(y)
+∂yα
+
++
+
+4
+
+∂Bαβ
+β,γ =1
+
+∂yγ
+
+(y(0) )
+
+(1)
+
+ẏγ
+
+(1)
+
+∂ 2 yβ(1) (1)
+y = 0,
+∂t02 γ
+(B3c)
+
+,
+where
+(ẏβ )
+
+⎞
+
+1
+− l12
+l22
+1
+
+⎟
+
+⎠.
+1
++ 2l12 − 2l11 l2 cos φ
+2l12
+2
+
+1
+
+Dαβγ (y(0) ) ẏβ
+
+β,γ =1
+
+(2)
+
+T
+
+2
+
+4
+
+
++
+
+β=1
+
+− cos φ
+,
+2
+1
+sin φ
+2l2
+1
+− 2l1 sin φ
+
+4
+
+
+(A4)
+
+(1)
+
+=
+
+(ÿβ )(2) =
+
+dyβ(0)
+dt1
+
++
+
+d 2 yβ(0)
+dt12
+
+∂yβ(1)
+∂t0
+
++2
+
+,
+
+∂ 2 yβ(1)
+∂t0 ∂t1
+
+.
+
+(B4)
+
+The equations in O( 0 ) are satisfied by Eq. (21).
+
+2. Equation in O()
+
+The equations of motion in O(), Eq. (B3b), are linear and are rewritten as
+B(0)
+where
+
+⎛
+B
+
+(0)
+
+2
+
+⎜
+cos φ (0)
+m⎜
+⎜
+= B(y ) = ⎜ 1 ‡
+3 ⎜− 2 l sin φ (0)
+⎝
+−l ‡ sin φ (0)
+(0)
+
+∂ 2 y(1)
++ Ky(1) = 0,
+∂t02
+
+(B5)
+
+cos φ (0)
+
+− 21 l ‡ sin φ (0)
+
+−l ‡ sin φ (0)
+
+2
+
+− 21 l ‡ sin φ (0)
+
+l ‡ sin φ (0)
+
+− 21 l ‡ sin φ (0)
+
+1 ‡ 2
+(l ) (2 − cos φ (0) )
+2
+
+0
+
+l ‡ sin φ (0)
+
+0
+
+2(l ‡ )2 (2 + cos φ (0) )
+
+024204-9
+
+⎞
+⎟
+⎟
+⎟
+⎟,
+⎟
+⎠
+
+(B6)
+
+YOSHIYUKI Y. YAMAGUCHI
+
+and
+ ‡
+K = ULJ
+(l )
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+
+
+
+O
+.
+O
+
+E
+O
+
+and v i into a matrix
+(B7)
+
+Here, E represents the unit matrix
+√ and O represents the zero
+matrix. Substituting y(1) = v cos( λt0 ) into Eq. (B5), we consider the eigenvalue problem
+(B(0) λ − K)v = 0,
+
+which induces det(B λ − K) = 0 to determine λ. We have
+four sets of λi and v i (i = 1, · · · , 4). Arranging λi into a
+diagonal matrix
+=
+
+m
+
+diag(2 − cos φ (0) , 2 + cos φ (0) , 0, 0)
+
+−1
+1
+
+0
+0
+
+0
+
+1
+
+sin φ (0)
+− l1‡ 2+cos
+φ (0)
+
+0
+
+1
+1
+
+⎜
+⎜
+(0)
+P = v1, . . . , v4 = ⎜
+⎜ 2‡ sin φ (0)
+⎝ l 2−cos φ
+0
+
+(B9)
+
+we have the equality
+B(0) P − KP = O.
+
+(B11)
+
+We can also show that PT B(0) P = B is diagonal, where
+
+
+
+m
+6
+1 ‡ 2
+6
+(0)
+‡ 2
+(0)
+B = diag
+,
+, (l ) (2 − cos φ ), 2(l ) (2 + cos φ ) .
+3
+2 − cos φ (0) 2 + cos φ (0) 2
+Therefore, the matrix PT KP = PT B(0) P = B  is also diagonal. Performing the change of variables by
+y(1) = Pη,
+
+⎛
+
+where we used the fact det B = 0.
+ ‡
+(l ) >
+The first two eigenvalues of  are positive since ULJ
+0, and we have two vibrating modes: the in-phase mode
+(mode-I) and the antiphase mode (mode-II). Let us compute
+energy for each mode. The linear equations (B5) are derived
+from the Lagrangian
+
+
+Recalling that the amplitudes of the normal modes are of
+O(), we have the normal mode energy of O( 2 ). Energy of
+the mode-I is hence
+
+
+EI
+∂η1
+m
+=
+2
+(0)
+
+2 − cos φ
+∂t0
+
+2
+
+ ‡ 2
++ ULJ
+(l )η1
+
+sin φ
+− l1‡ 2−cos
+φ (0)
+
+1
+
+1 sin φ (0)
+l ‡ 2+cos φ (0)
+
+0
+
+(0)
+
+⎞
+0
+⎟
+0⎟
+⎟
+,
+0⎟
+⎟
+⎠
+1
+
+(B18)
+
+2
+
+ ‡
+m ∂t0 l1(1) + l2(1)
+EI
+ULJ
+(l ) (1)
+2
++
+l1 + l2(1)
+=
+2
+(0)
+
+4(2 − cos φ )
+4
+
+(B19)
+
+2
+
+ ‡
+m ∂t0 l1(1) − l2(1)
+ULJ
+EII
+(l ) (1)
+2
++
+l1 − l2(1) .
+=
+2
+(0)
+
+4(2 + cos φ )
+4
+
+(B20)
+
+For the initial condition discussed in Sec. V A, the initial
+values of EI and EII result in Eq. (25), since δli = li(1) .
+3. Equation in O(2 )
+
+Taking the average over the fast timescale t0 , we have in
+O( 2 )
+4
+
+
+Bαβ
+
+d 2 yβ(0)
+
++
+
+4
+
+
+Dαβγ
+
+dyβ(0) dyγ(0)
+
+dt1 dt1
+dt12
+β,γ =1
+
+
+
+(2) 
+4
+∂V
+1  ∂Bβγ (1) ∂ 2 yγ(1)
+=−
+−
+yβ
+,
+∂yα
+2 β,γ =1 ∂yα
+∂t02
+
+(B16)
+
+(B17)
+
+0
+0
+
+and
+
+β=1
+
+and of the mode-II is
+
+
+EII
+∂η2 2
+m
+ ‡ 2
+=
++ ULJ
+(l )η2 .
+2
+2 + cos φ (0) ∂t0
+
+1/2
+1/2
+
+we have
+
+(1) T
+
+∂y(1)
+1 ∂y
+1
+T
+B(0)
+− y(1) Ky(1)
+2 ∂t0
+∂t0
+2
+ 
+∂η
+1 ∂η T
+1
+=
+B
+− ηT B η.
+(B15)
+2 ∂t0
+∂t0
+2
+
+L (1) =
+
+1/2
+−1/2
+
+⎜
+⎜
+⎜
+P−1 = ⎜ 1 sin φ (0)
+⎜ − l ‡ 2−cos φ (0)
+⎝
+sin φ (0)
+− 2l1‡ 2+cos
+φ (0)
+
+(B13)
+
+(B14)
+
+(B12)
+
+Coming back to the coordinate y(1) by η = P−1 y(1) with
+
+the linear equations (B5) are modified into a diagonalized
+form
+∂ 2η
+= −η,
+∂t02
+
+⎞
+0
+0⎟
+⎟
+⎟,
+0⎟
+⎠
+1
+(B10)
+
+(B8)
+
+(0)
+
+ ‡
+ULJ
+(l )
+
+⎛
+
+(B21)
+
+where Bαβ , Dαβγ , and ∂Bβγ /∂yα are evaluated at y = y(0) .
+The symbol · · · represents the average over t0 . The lefthand side comes from the leading-order geodesic equation in
+
+024204-10
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+FIG. 10. Power spectra of l1 (t ). (a) Corresponding to the time series of Fig. 5(a). (b) Corresponding to the time series of Fig. 5(b). The
+small down arrows mark from left to right the eigenfrequencies of the in-phase and antiphase modes, respectively, which are defined in O()
+at φ = 0 (straight conformation).
+
+the metric space with B(y) [see Eq. (B1)], the first term of
+the right-hand side is the averaged bare potential force, and the
+second term is the additional effective force, which is obtained
+by performing the integration by parts.
+From now on, we focus on the equation of motion for φ,
+i.e., α = 3 in Eq. (B21). Around y = y‡ , the averaged bare
+potential force is
+  
+∂V (2)
+1 ∂V ‡ ‡ (0)
+−
+(B22)
+=− 2
+(l , l , φ ),
+∂φ
+ ∂φ
+which is of O( 0 ). From (B5), the second term denoted by A
+is modified into
+
+
+1
+T ∂B
+T
+P ηη ,
+(B23)
+A = Tr P
+2
+∂φ
+where Tr represents trace. For η = (η1 , η2 , η3 , η4 ) we have
+ U  (l ‡ )
+
+ 
+ 
+diag (2 − cos φ (0) ) η12 , (2 + cos φ (0) ) η22 , 0, 0 .
+ ηηT = LJ
+m
+(B24)
+
+This form implies that, to obtain A, we need only the first two
+diagonal elements of PT (∂B/∂φ)P, which is read as
+⎞
+⎛⎛
+⎞
+−2m sin φ (0)
+0
+(0)
+2
+⎜⎝ [2−cos φ ]
+⎠ ∗⎟
+∂B
+⎟.
+2m sin φ (0)
+PT
+(B25)
+P=⎜
+0
+⎠
+⎝
+[2+cos φ (0) ]2
+∂φ
+∗
+∗
+The factor A is hence
+
+
+sin φ (0)  2 
+sin φ (0)  2 
+ ‡
+A = −ULJ (l )
+η −
+η .
+2 − cos φ (0) 1
+2 + cos φ (0) 2
+(B26)
+For the normal modes described by Eqs. (B16) and (B17), the
+averages of amplitudes are, respectively,
+ 2
+η1 =
+
+EI
+,
+ (l ‡ )
+2
+2 ULJ
+
+ 2
+η2 =
+
+EII
+.
+ (l ‡ )
+2
+2 ULJ
+
+Finally, from the relations
+EI = Enormal νI ,
+we have
+A=−
+
+EII = Enormal νII ,
+
+(B28)
+
+
+
+Enormal
+νI
+νII
+(0)
+.
+sin
+φ
+−
+2 2
+2 − cos φ (0)
+2 + cos φ (0)
+(B29)
+
+This additional term gives the effective force (26).
+APPENDIX C: POWER SPECTRA OF l1 (t )
+
+We report in Fig. 10 power spectra of l1 (t ), which correspond to the time series of Figs. 5(a) and 5(b). We select l1 (t )
+instead of l3 (t ), since l3 is almost dominated by the in-phase
+mode around a straight conformation. We pick up a period
+of 218 t, where t = 10−3 is the timestep of molecular dynamics. A nonstabilized saddle experiences chaotic dynamics
+by visiting bottoms of potential landscape, and the power
+spectrum is broad [Fig. 10(a)]. Around a stabilized saddle,
+the power spectrum has sharp peaks and motion is regular
+[Fig. 10(b)].
+The above difference is also observed in two time regions
+of the orbit shown in Fig. 5(c); The saddle point keeps (loses)
+stability in the time region t < 600 (t > 650). In each of the
+time regions, we pick up a time sequence of l1 (t ) in a period
+of 218 t. The power spectrum in the stabilized time region is
+reported in Fig. 11(a), and it has peaks as Fig. 10(b), although
+the peaks are shifted and fade due to stronger nonlinear effects. After losing the stability, the power spectrum reported
+in Fig. 11(b) is broad as Fig. 10(a).
+APPENDIX D: HAMILTONIAN FORMALISM
+OF THE SYSTEM
+
+The Hamiltonian of the system is expressed by
+1  
+Bαβ (y)pα pβ + V (y),
+H (y, p) =
+2 α,β=1
+4
+
+(B27)
+
+024204-11
+
+(D1)
+
+YOSHIYUKI Y. YAMAGUCHI
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+FIG. 11. Power spectra of l1 (t ) corresponding to Fig. 5(c). (a) Stable time region t < 600. (b) After losing the stability t > 650. The small
+down arrows mark from left to right the eigenfrequencies of the in-phase and antiphase modes respectively, which are defined in O() at φ = 0
+(straight conformation).
+
+αβ (y) is the (α, β ) element of the inverse matrix of
+where B
+B(y) [see Eq. (A4)]. The transformations between the momentum vector p = (p1 , p2 , p3 , p4 ) and the velocity vector
+ẏ = (ẏ1 , ẏ2 , ẏ3 , ẏ4 ) = (l˙1 , l˙2 , φ̇, φ̇L ) are
+α
+
+p =
+
+4
+
+
+αβ
+
+B (y)ẏβ ,
+
+ẏα =
+
+4
+
+
+The inverse matrix [B(y)]−1 gives the velocity φ̇ as
+
+
+ 
+  1
+1
+1
+1
+p
+p2
+3 1
+sin φ
+2p
+φ̇ =
++ 2+
+cos φ +
++
+m
+l1 l2
+l2
+l1
+l12
+l2
+(D3)
+
+αβ (y)pβ .
+B
+
+(D2)
+
+for the vanishing total angular momentum, p4 ≡ 0. Similarly,
+the sum in the kinetic term runs from 1 to 3 in the Hamiltonian
+(D1).
+
+[1] A. Stephenson, XX. On induced stability, The London,
+Edinburgh, and Dublin, Philosophical Magazine and Journal of
+Science 15, 233 (1908).
+[2] P. L. Kapitza, Dynamic stability of a pendulum when its point of
+suspension vibrates, Sov. Phys. JETP 21, 588 (1951); Collected
+papers of Vol. 2, pp. 714–737 (1965).
+[3] E. I. Butikov, On the dynamic stabilization of an inverted pendulum, Am. J. Phys. 69, 755 (2001).
+[4] M. Bukov, L. D’Alessio, and A. Polkovnikov, Universal
+high-frequency behavior of periodically driven systems: from
+dynamical stabilization to Floquet engineering, Adv. Phys. 64,
+139 (2015).
+[5] Y. Y. Yamaguchi, T. Yanagita, T. Konishi, and M. Toda,
+Dynamically induced conformation depending on excited normal modes of fast oscillation, Phys. Rev. E 105, 064201
+(2022).
+[6] Y. Y. Yamaguchi, Mode selectivity of dynamically induced conformation in many-body chainlike bead-spring models, Phys.
+Rev. E 107, 064212 (2023).
+[7] P. E. Rouse, Jr., A theory of the linear viscoelastic properties of
+dilute solutions of coiling polymers, J. Chem. Phys. 21, 1272
+(1953).
+[8] T. Yanagita and T. Konishi, Numerical analysis of new oscillatory mode of bead-spring model, J. JSCE 75, I_125 (2019).
+[9] C. M. Bender and S. A. Orszag, Advanced Mathematical Methods for Scientists and Engineers I: Asymptotic Methods and
+Perturbation Theory (Springer, New York, 1999).
+
+[10] N. M. Krylov and N. N. Bogoliubov, New Methods of Nonlinear Mechanics in their Application to the Investigation of the
+Operation of Electronic Generators. I (United Scientific and
+Technical Press, Moscow, 1934).
+[11] N. M. Krylov and N. N. Bogoliubov, Introduction to Nonlinear
+Mechanics (Princeton University Press, Princeton, 1947).
+[12] J. Guckenheimer and P. Holmes, Nonlinear Oscillations,
+Dynamical Systems, and Bifurcations of Vector Fields (SpringerVerlag, New York, 1983).
+[13] J. E. Lennard-Jones, Cohesion, Proc. Phys. Soc. 43, 461 (1931).
+[14] J. Fischer and M. Mendland, On the history of key empirical
+intermolecular potentials, Fluid Phase Equilib. 573, 113876
+(2023).
+[15] J. Lenhard, S. Stephan, and H. Hasse, On the history of the
+Lennard-Jones Potential, Ann. Phys. 536, 2400115 (2024).
+[16] Y. Shimizu (private communications).
+[17] R. A. Marcus and O. K. Rice, The kinetics of the recombination
+of methyl radicals and iodine atoms, J. Phys. Chem. 55, 894
+(1951).
+[18] R. A. Marcus, Unimolecular dissociation and free radical recombination reactions, J. Chem. Phys. 20, 359 (1952).
+[19] H. M. Rosenstock, M. B. Wallenstein, A. L. Wahrhaftig, and
+H. Eyring, Absolute rate theory for isolated systems and the
+mass spectra of polytomic molecules, Proc. Natl. Acad. Sci.
+USA 38, 667 (1952).
+[20] J. L. Magee, Theory of the chemical reaction rate constant,
+Proc. Natl. Acad. Sci. USA 38, 764 (1952).
+
+β=1
+
+β=1
+
+024204-12
+
+STABILIZATION OF A TRANSITION STATE BY …
+
+PHYSICAL REVIEW E 111, 024204 (2025)
+
+[21] J. C. Giddings and H. Eyring, Equilibrium theory of unimolecular reactions, J. Chem. Phys. 22, 538 (1954).
+[22] G. M. Wieder and R. A. Marcus, Dissociation and isomerization of vibrationally excited species. II. Unimolecular reaction
+rate theory and its application, J. Chem. Phys. 37, 1835
+(1962).
+[23] K. J. Laidler and M. C. King, Development of transition-state
+theory, J. Phys. Chem. 87, 2657 (1983).
+[24] D. G. Truhlar, B. C. Garrett, and S. J. Klippenstein, J. Phys.
+Chem. 100, 12771 (1996).
+[25] B. C. Dian, A. Longarte, and T. S. Zwier, Conformational dynamics in a dipeptide after single-mode vibrational excitation,
+Science 296, 2369 (2002).
+[26] B. C. Dian, A. Longarte, P. R. WInter, and T. S. Zwier,
+The dynamics of conformational isomerization in flexible bimolecules. I. Hole-filling spectroscopy of N-acetyl tryptophan
+methyl amide and N-acetyl tryptophan amide, J. Chem. Phys.
+120, 133 (2004).
+
+[27] T. Yanao and K. Takatsuka, Collective coordinates and an accompanying metric force in structural isomerization dynamics
+of molecules, Phys. Rev. A 68, 032714 (2003).
+[28] T. Yanao and K. Takatsuka, Kinematic effects associated with
+molecular frames in structural isomerization dynamics of clusters, J. Chem. Phys. 120, 8924 (2004).
+[29] T. Yanao and K. Takatsuka, Effects of an intrinsic metric of
+molecular internal space on chemical reaction dynamics, in Geometric Structures of Phase Space in Multi-Dimensional Chaos:
+Applications to Chemical Reaction Dynamics in Complex Systems, edited by M. Toda, T. Komatsuzaki, T. Konishi, and R. S.
+Berry, Advanced in Chemical Physics, Vol. 130 (John Wiley &
+Sons, New Jersey, 2005), Chap. 12.
+[30] T. Yanao, W. S. Koon, J. E. Marsden, and I. G. Kevrekidis,
+Gyration-radius dynamics in structural transitions of atomic
+clusters, J. Chem. Phys. 126, 124102 (2007).
+[31] H. Yoshida, Construction of higher order symlectic integrators,
+Phys. Lett. A 150, 262 (1990).
+
+024204-13
+
+
