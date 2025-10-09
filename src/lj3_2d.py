@@ -93,12 +93,8 @@ def run_case(
     save_every: int = 10,
     seed: int = 0,
 ):
-    rng = np.random.default_rng(seed)
     X = np.array([[-x0, 0.0], [0.0, y0], [x0, 0.0]], float)
     V = np.array([[+vb, 0.0], [0.0, 0.0], [-vb, 0.0]], float)
-    # tiny symmetry-breaking noise
-    V[:, 1] += rng.normal(scale=0.002 * vb + 1e-3, size=3)
-    V -= V.mean(axis=0, keepdims=True)
 
     nsteps = int(T / dt)
     Xc, Vc = X.copy(), V.copy()
