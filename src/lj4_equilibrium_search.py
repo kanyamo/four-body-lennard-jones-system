@@ -35,6 +35,14 @@ KNOWN_CONFIGS: dict[tuple[int, ...], str] = {
         216271,
         216271,
     ): "isosceles triangle + interior (C_s)",
+    (
+        111954,
+        112094,
+        112094,
+        224048,
+        224048,
+        336142,
+    ): "linear chain (D_{\infty h})",
 }
 
 
@@ -300,6 +308,18 @@ def multi_start(samples: int, seed: int, max_distance: float) -> list[Equilibriu
             [1.9328543867, 0.9664271933, 1.6739010010, 0.9664271933, 0.5579670003, 0.0]
         )
     )  # triangle+center
+    guesses.append(
+        np.array(
+            [
+                1.1209389078,
+                2.2404785421,
+                1e-3,
+                3.3614174499,
+                0.0,
+                1e-3,
+            ]
+        )
+    )  # near-linear chain (tiny transverse offset avoids gauge singularity)
 
     for _ in range(samples):
         x1 = rng.uniform(0.6, 2.0)
