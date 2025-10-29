@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import math
+from collections.abc import Sequence as Seq
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,15 +25,21 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--mode-displacement",
-        type=float,
-        default=0.02,
-        help="initial displacement amplitude along the first stable mode",
+        type=str,
+        default="0.02",
+        help="comma-separated displacement amplitudes for selected modes",
     )
     ap.add_argument(
         "--mode-velocity",
-        type=float,
-        default=0.05,
-        help="initial velocity amplitude along the first stable mode",
+        type=str,
+        default="0.05",
+        help="comma-separated velocity amplitudes for selected modes",
+    )
+    ap.add_argument(
+        "--modes",
+        type=str,
+        default="0",
+        help="comma-separated stable-mode indices (0 = lowest positive eigenvalue)",
     )
     ap.add_argument("--dt", type=float, default=0.002)
     ap.add_argument("--T", type=float, default=60.0)
@@ -79,7 +86,8 @@ def update_plot(ax, result, trace_index):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    ax.set_title(f"{result.spec.label} — first stable mode ω²={result.omega2:.3f}")
+    mode_list = ", ".join(str(idx) for idx in result.mode_indices)
+    ax.set_title(f"{result.spec.label} — modes {mode_list}")
 
     trace_points = result.positions[:, trace_index, :]
     current_frame: list[int] = [0]
@@ -130,25 +138,35 @@ def update_plot(ax, result, trace_index):
     show_frame(0)
 
 
+def _ensure_float_list(value: float | Seq[float]) -> list[float]:
+    if isinstance(value, Seq) and not isinstance(value, (str, bytes)):
+        return [float(v) for v in value]
+    return [float(value)]
+
+
 def simulate(
     config: str,
-    mode_displacement: float,
-    mode_velocity: float,
+    mode_displacement: float | Seq[float],
+    mode_velocity: float | Seq[float],
     dt: float,
     total_time: float,
     save_stride: int,
     center_mass: float,
+    mode_indices: Seq[int] | None = None,
 ):
+    disp = _ensure_float_list(mode_displacement)
+    vel = _ensure_float_list(mode_velocity)
     result = simulate_trajectory(
         config=config,
-        mode_displacement=mode_displacement,
-        mode_velocity=mode_velocity,
+        mode_indices=mode_indices,
+        mode_displacements=disp,
+        mode_velocities=vel,
         dt=dt,
         total_time=total_time,
         save_stride=save_stride,
         center_mass=center_mass,
     )
-    return result.spec, result.omega2, result.times, result.positions
+    return result.spec, result.mode_eigenvalues, result.times, result.positions
 
 
 def main() -> None:
@@ -158,10 +176,27 @@ def main() -> None:
     if args.center_mass <= 0.0:
         raise ValueError("--center_mass must be positive")
 
+    def parse_float_list(raw: str, name: str) -> list[float]:
+        parts = [item.strip() for item in str(raw).split(",") if item.strip()]
+        if not parts:
+            raise ValueError(f"{name} must contain at least one value")
+        return [float(item) for item in parts]
+
+    def parse_int_list(raw: str, name: str) -> list[int]:
+        parts = [item.strip() for item in str(raw).split(",") if item.strip()]
+        if not parts:
+            raise ValueError(f"{name} must contain at least one value")
+        return [int(item) for item in parts]
+
+    mode_indices = tuple(parse_int_list(args.modes, "--modes"))
+    mode_displacements = parse_float_list(args.mode_displacement, "--mode-displacement")
+    mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
+
     result = simulate_trajectory(
         args.config,
-        args.mode_displacement,
-        args.mode_velocity,
+        mode_indices,
+        mode_displacements,
+        mode_velocities,
         args.dt,
         args.T,
         args.thin,
@@ -173,11 +208,20 @@ def main() -> None:
         raise ValueError("trace index out of bounds for this configuration")
 
     print(f"Configuration: {result.spec.label}")
-    print(f"First stable mode ω² = {result.omega2:.6f}")
-    print(
-        f"Initial conditions: displacement={args.mode_displacement:.4f}, "
-        f"velocity={args.mode_velocity:.4f}"
+    mode_info = ", ".join(
+        f"{idx} (ω²={eig:.6f}, disp={disp:.4f}, vel={vel:.4f})"
+        for idx, eig, disp, vel in zip(
+            result.mode_indices,
+            result.mode_eigenvalues,
+            result.displacement_coeffs,
+            result.velocity_coeffs,
+        )
     )
+    print(f"Modes: {mode_info}")
+    print(
+        f"Displacement coeffs: {', '.join(f'{v:.4f}' for v in mode_displacements)}"
+    )
+    print(f"Velocity coeffs: {', '.join(f'{v:.4f}' for v in mode_velocities)}")
 
     fig = plt.figure(figsize=(6.5, 6.8))
     ax = fig.add_subplot(111, projection="3d")

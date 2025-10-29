@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from itertools import combinations
+from typing import Sequence
 
 import numpy as np
 
@@ -30,6 +31,7 @@ class SimulationResult:
     spec: EquilibriumSpec
     omega2: float
     mode_shape: np.ndarray
+    initial_velocity: np.ndarray
     masses: np.ndarray
     times: np.ndarray
     positions: np.ndarray
@@ -38,6 +40,11 @@ class SimulationResult:
     total: np.ndarray | None
     energy_initial: float | None
     energy_final: float | None
+    mode_indices: tuple[int, ...]
+    mode_eigenvalues: tuple[float, ...]
+    displacement_coeffs: tuple[float, ...]
+    velocity_coeffs: tuple[float, ...]
+    mode_shapes: tuple[np.ndarray, ...]
 
 
 def _regular_tetrahedron() -> np.ndarray:
@@ -260,14 +267,15 @@ def recenter(points: np.ndarray, masses: np.ndarray) -> np.ndarray:
     return points - com
 
 
-def first_stable_mode(
+def stable_modes(
     positions: np.ndarray, masses: np.ndarray, tol: float = 1e-8
-) -> tuple[np.ndarray, float]:
+) -> list[tuple[np.ndarray, float]]:
     H = build_hessian(positions)
     weights = np.repeat(np.sqrt(masses), 3)
     Hmw = H / weights[:, None]
     Hmw = Hmw / weights[None, :]
     eigvals, eigvecs = np.linalg.eigh(Hmw)
+    modes: list[tuple[np.ndarray, float]] = []
     for idx, lam in enumerate(eigvals):
         if lam > tol:
             vec = eigvecs[:, idx] / weights
@@ -276,8 +284,17 @@ def first_stable_mode(
             norm = np.linalg.norm(coords)
             if norm > 0.0:
                 coords /= norm
-            return coords, float(lam)
-    raise RuntimeError("No stable mode located above tolerance")
+            modes.append((coords, float(lam)))
+    if not modes:
+        raise RuntimeError("No stable mode located above tolerance")
+    return modes
+
+
+def first_stable_mode(
+    positions: np.ndarray, masses: np.ndarray, tol: float = 1e-8
+) -> tuple[np.ndarray, float]:
+    modes = stable_modes(positions, masses, tol)
+    return modes[0]
 
 
 def prepare_equilibrium(
@@ -297,8 +314,9 @@ def prepare_equilibrium(
 
 def simulate_trajectory(
     config: str,
-    mode_displacement: float,
-    mode_velocity: float,
+    mode_indices: Sequence[int] | None,
+    mode_displacements: Sequence[float],
+    mode_velocities: Sequence[float],
     dt: float,
     total_time: float,
     save_stride: int,
@@ -309,13 +327,54 @@ def simulate_trajectory(
         raise ValueError("save_stride must be >= 1")
 
     spec, equilibrium, masses = prepare_equilibrium(config, center_mass)
-    mode_shape, omega2 = first_stable_mode(equilibrium, masses)
+    all_modes = stable_modes(equilibrium, masses)
 
-    X0 = equilibrium + mode_displacement * mode_shape
-    V0 = mode_velocity * mode_shape
+    selected_indices = (
+        tuple(mode_indices) if mode_indices is not None else (0,)
+    )
+    if not selected_indices:
+        raise ValueError("At least one mode index must be specified")
+    if max(selected_indices) >= len(all_modes) or min(selected_indices) < 0:
+        raise IndexError(
+            "Mode index out of range; ensure the configuration has that many stable modes"
+        )
+
+    def _expand(values: Sequence[float], count: int, name: str) -> list[float]:
+        vals = list(values)
+        if not vals:
+            raise ValueError(f"{name} must contain at least one value")
+        if len(vals) == 1 and count > 1:
+            vals = vals * count
+        if len(vals) != count:
+            raise ValueError(
+                f"{name} must provide either one value or as many values as modes "
+                f"({count}), got {len(vals)}"
+            )
+        return vals
+
+    disp_coeffs = tuple(_expand(mode_displacements, len(selected_indices), "mode_displacements"))
+    vel_coeffs = tuple(_expand(mode_velocities, len(selected_indices), "mode_velocities"))
+
+    mode_vectors: list[np.ndarray] = []
+    mode_eigs: list[float] = []
+    combined_disp = np.zeros_like(equilibrium)
+    combined_vel = np.zeros_like(equilibrium)
+    for idx, disp, vel in zip(selected_indices, disp_coeffs, vel_coeffs):
+        vec, lam = all_modes[idx]
+        mode_vectors.append(vec)
+        mode_eigs.append(lam)
+        combined_disp += disp * vec
+        combined_vel += vel * vec
+
+    omega2 = mode_eigs[0]
+
+    X0 = equilibrium + combined_disp
+    V0 = combined_vel
     X0 = recenter(X0, masses)
     v_com = np.sum(V0 * masses[:, None], axis=0) / masses.sum()
     V0 -= v_com
+    initial_displacement = X0 - equilibrium
+    initial_velocity = V0.copy()
 
     nsteps = int(total_time / dt)
     snaps: list[np.ndarray] = [X0.copy()]
@@ -357,7 +416,8 @@ def simulate_trajectory(
     return SimulationResult(
         spec=spec,
         omega2=omega2,
-        mode_shape=mode_shape,
+        mode_shape=initial_displacement,
+        initial_velocity=initial_velocity,
         masses=masses,
         times=np.array(times),
         positions=np.array(snaps),
@@ -366,6 +426,11 @@ def simulate_trajectory(
         total=total,
         energy_initial=energy_initial,
         energy_final=energy_final,
+        mode_indices=selected_indices,
+        mode_eigenvalues=tuple(mode_eigs),
+        displacement_coeffs=disp_coeffs,
+        velocity_coeffs=vel_coeffs,
+        mode_shapes=tuple(mode_vectors),
     )
 
 
@@ -384,6 +449,7 @@ __all__ = [
     "build_hessian",
     "recenter",
     "first_stable_mode",
+    "stable_modes",
     "prepare_equilibrium",
     "simulate_trajectory",
 ]
