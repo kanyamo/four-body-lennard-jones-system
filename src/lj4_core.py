@@ -483,8 +483,7 @@ def simulate_trajectory(
     save_stride: int,
     center_mass: float,
     record_energies: bool = False,
-    random_kick_energy: float = 0.0,
-    random_seed: int | None = 12345,
+    modal_kick_energy: float = 0.0,
 ) -> SimulationResult:
     if save_stride < 1:
         raise ValueError("save_stride must be >= 1")
@@ -534,16 +533,24 @@ def simulate_trajectory(
         combined_disp += disp * vec
         combined_vel += vel * vec
 
-    if random_kick_energy > 0.0:
-        rng = np.random.default_rng(random_seed)
-        noise = rng.standard_normal(size=combined_vel.shape)
-        momentum = np.sum(noise * masses[:, None], axis=0) / masses.sum()
-        noise -= momentum  # remove net momentum before scaling
-        k_noise = kinetic_energy(noise, masses)
-        if k_noise > 0.0:
-            scale = np.sqrt(random_kick_energy / k_noise)
-            noise *= scale
-            combined_vel += noise
+    if modal_kick_energy > 0.0:
+        def select_modal_index(target: str) -> int | None:
+            for idx, cls in enumerate(modal_basis.classifications):
+                if cls == target:
+                    return idx
+            return None
+
+        modal_index = select_modal_index("unstable")
+        if modal_index is None:
+            modal_index = select_modal_index("stable")
+        if modal_index is None:
+            modal_index = select_modal_index("zero")
+
+        if modal_index is not None:
+            base_vector = modal_basis.vectors[:, modal_index]
+            direction = base_vector.reshape(combined_vel.shape)
+            amplitude = math.sqrt(2.0 * modal_kick_energy)
+            combined_vel += amplitude * direction
 
     omega2 = mode_eigs[0]
 

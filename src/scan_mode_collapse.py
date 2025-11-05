@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 """Scan collapse times for mode-driven LJ4 trajectories.
 
-Given a configuration and a target normal mode, excite that mode with a
-prescribed range of initial kinetic energies (via the mode velocity
-coefficients) and record when the potential energy first drops below a collapse
-threshold.  The threshold is expressed as
-
-    V(t) <= V_equilibrium + collapse_delta
-
-which makes it portable across distinct equilibria.  The script writes the
-results to CSV and can optionally plot collapse time versus initial kinetic
-energy.
+与えられた設定・モードに対し、初期運動エネルギー（モード速度係数）を走査し、
+シミュレーション中に不安定モード座標のいずれかが指定閾値を超える最初の時刻を
+「崩壊時間」として記録します。結果は CSV に保存でき、オプションでプロットも作成できます。
 """
 
 from __future__ import annotations
@@ -23,10 +16,8 @@ from typing import Iterable
 import numpy as np
 
 from lj4_core import (
-    EQUILIBRIA,
     available_configs,
     kinetic_energy,
-    lj_total_potential,
     prepare_equilibrium,
     simulate_trajectory,
     stable_modes,
@@ -64,10 +55,10 @@ def parse_args() -> argparse.Namespace:
         help="number of evenly spaced samples (>=2 for a range, 1 for single point)",
     )
     ap.add_argument(
-        "--collapse-delta",
+        "--unstable-threshold",
         type=float,
-        default=-0.2,
-        help="collapse threshold offset added to the equilibrium potential",
+        default=0.1,
+        help="absolute modal coordinate threshold for unstable modes",
     )
     ap.add_argument(
         "--energy-total",
@@ -132,24 +123,22 @@ def parse_args() -> argparse.Namespace:
         help="mass of the central particle (triangle+center config only)",
     )
     ap.add_argument(
-        "--random-kick-energy",
+        "--modal-kick-energy",
         type=float,
         default=0.01,
-        help="additional random kinetic energy injected at t=0 (set 0 to disable)",
-    )
-    ap.add_argument(
-        "--random-kick-seed",
-        type=int,
-        default=12345,
-        help="seed for the random kick (use -1 for nondeterministic)",
+        help="deterministic kinetic energy injected along the leading unstable mode (0 to disable)",
     )
     return ap.parse_args()
 
 
-def collapse_time(
-    times: np.ndarray, potentials: np.ndarray, threshold: float
+def collapse_time_modal(
+    times: np.ndarray, modal_coords: np.ndarray, unstable_indices: list[int], threshold: float
 ) -> float | None:
-    mask = potentials <= threshold
+    if not unstable_indices:
+        return None
+    unstable_slice = modal_coords[:, unstable_indices]
+    envelope = np.max(np.abs(unstable_slice), axis=1)
+    mask = envelope >= threshold
     if not np.any(mask):
         return None
     idx = int(np.argmax(mask))
@@ -184,12 +173,8 @@ def main() -> None:
     if not (0.0 <= args.mix_min <= args.mix_max <= 1.0):
         raise SystemExit("--mix-min/max must satisfy 0 <= min <= max <= 1")
 
-    spec = EQUILIBRIA[args.config]
     _, equilibrium, masses = prepare_equilibrium(args.config, args.center_mass)
     all_modes = stable_modes(equilibrium, masses)
-
-    V_eq = float(lj_total_potential(equilibrium))
-    collapse_threshold = V_eq + args.collapse_delta
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -197,7 +182,7 @@ def main() -> None:
 
     def run_simulation(
         mode_indices: list[int], vel_coeffs: list[float]
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float | None, float]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float | None, float, float]:
         result = simulate_trajectory(
             config=args.config,
             mode_indices=mode_indices,
@@ -208,17 +193,29 @@ def main() -> None:
             save_stride=args.thin,
             center_mass=args.center_mass,
             record_energies=True,
-            random_kick_energy=args.random_kick_energy,
-            random_seed=(None if args.random_kick_seed == -1 else args.random_kick_seed),
+            modal_kick_energy=args.modal_kick_energy,
         )
         if result.potential is None or result.kinetic is None:
             raise RuntimeError("simulation did not return energy diagnostics")
         times = np.asarray(result.times)
         potential = np.asarray(result.potential)
         kinetic = np.asarray(result.kinetic)
-        collapse = collapse_time(times, potential, collapse_threshold)
+        modal_coords = np.asarray(result.modal_coordinates)
+        unstable_indices = [
+            idx
+            for idx, cls in enumerate(result.modal_basis.classifications)
+            if cls == "unstable"
+        ]
+        collapse = collapse_time_modal(
+            times, modal_coords, unstable_indices, args.unstable_threshold
+        )
+        if unstable_indices:
+            envelope = np.max(np.abs(modal_coords[:, unstable_indices]), axis=1)
+            envelope_max = float(np.max(envelope))
+        else:
+            envelope_max = float("nan")
         pmin = float(potential.min())
-        return times, kinetic, potential, collapse, pmin
+        return times, kinetic, potential, collapse, pmin, envelope_max
 
     secondary = args.secondary_mode
 
@@ -226,7 +223,7 @@ def main() -> None:
         mode_indices = [args.mode_index]
         for energy in sample_energies(args.energy_min, args.energy_max, args.samples):
             velocity = kinetic_energy_to_velocity(energy)
-            _, kinetic, potential, collapse, pmin = run_simulation(
+            _, kinetic, potential, collapse, pmin, env_max = run_simulation(
                 mode_indices, [velocity]
             )
             k0 = float(kinetic[0])
@@ -239,11 +236,15 @@ def main() -> None:
                     "kinetic_initial": k0,
                     "collapse_time": collapse,
                     "potential_min": pmin,
+                    "unstable_envelope_max": env_max,
+                    "unstable_threshold": args.unstable_threshold,
                 }
             )
-            status = f"K0={k0:.4f}, v={velocity:.4f}, collapse=" + (
-                f"{collapse:.3f}" if collapse is not None else "none"
-            )
+            if collapse is None:
+                status = f"K0={k0:.4f}, v={velocity:.4f}, collapse=none"
+            else:
+                status = f"K0={k0:.4f}, v={velocity:.4f}, collapse={collapse:.3f}"
+            status += f", max|q_unstable|={env_max:.3f}"
             print(status)
     else:
         if args.energy_total is None:
@@ -275,7 +276,7 @@ def main() -> None:
                     )
                 scale = float(np.sqrt(args.energy_total / raw_energy))
             vel_coeffs = [scale * weight_primary, scale * weight_secondary]
-            _, kinetic, potential, collapse, pmin = run_simulation(
+            _, kinetic, potential, collapse, pmin, env_max = run_simulation(
                 mode_indices, vel_coeffs
             )
             k0 = float(kinetic[0])
@@ -288,11 +289,15 @@ def main() -> None:
                     "kinetic_initial": k0,
                     "collapse_time": collapse,
                     "potential_min": pmin,
+                    "unstable_envelope_max": env_max,
+                    "unstable_threshold": args.unstable_threshold,
                 }
             )
-            status = f"ratio={alpha:.3f}, scale={scale:.4f}, collapse=" + (
-                f"{collapse:.3f}" if collapse is not None else "none"
-            )
+            if collapse is None:
+                status = f"ratio={alpha:.3f}, scale={scale:.4f}, collapse=none"
+            else:
+                status = f"ratio={alpha:.3f}, scale={scale:.4f}, collapse={collapse:.3f}"
+            status += f", max|q_unstable|={env_max:.3f}"
             print(status)
 
     csv_name = args.csv_name or (
@@ -312,6 +317,8 @@ def main() -> None:
                 "kinetic_initial",
                 "collapse_time",
                 "potential_min",
+                "unstable_envelope_max",
+                "unstable_threshold",
             ],
         )
         writer.writeheader()
@@ -339,7 +346,9 @@ def main() -> None:
             plt.plot(x_vals, ys, marker="o")
             plt.xlabel(f"Energy ratio (0→mode {secondary}, 1→mode {args.mode_index})")
         plt.axhline(0.0, color="0.7", linewidth=0.8)
-        plt.ylabel("Collapse time (first V <= V_eq + delta)")
+        plt.ylabel(
+            f"Collapse time (first |q_unstable| >= {args.unstable_threshold:g})"
+        )
         title = f"Collapse scan: {args.config}, mode {args.mode_index}"
         if secondary is not None:
             title += f" + {secondary}"
