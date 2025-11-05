@@ -150,6 +150,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="optional PNG path plotting kinetic/potential/total energies",
     )
+    ap.add_argument(
+        "--random-kick-energy",
+        type=float,
+        default=0.01,
+        help="additive random kinetic energy injected to break symmetry (set 0 to disable)",
+    )
+    ap.add_argument(
+        "--random-kick-seed",
+        type=int,
+        default=12345,
+        help="seed for the random kick (use -1 for nondeterministic)",
+    )
     return ap.parse_args()
 
 
@@ -168,9 +180,12 @@ def integrate(
     save_stride: int,
     center_mass: float,
     mode_indices: Seq[int] | None = None,
+    random_kick_energy: float = 0.01,
+    random_kick_seed: int | None = 12345,
 ) -> SimulationResult:
     disp_list = _ensure_float_list(mode_displacement)
     vel_list = _ensure_float_list(mode_velocity)
+    seed = random_kick_seed if random_kick_seed != -1 else None
     return simulate_trajectory(
         config=config,
         mode_indices=mode_indices,
@@ -181,6 +196,8 @@ def integrate(
         save_stride=save_stride,
         center_mass=center_mass,
         record_energies=True,
+        random_kick_energy=random_kick_energy,
+        random_seed=seed,
     )
 
 
@@ -195,6 +212,8 @@ def simulate(
     mode_indices: Seq[int] | None = None,
     mode_displacements: Seq[float] | None = None,
     mode_velocities: Seq[float] | None = None,
+    random_kick_energy: float = 0.01,
+    random_kick_seed: int | None = 12345,
 ):
     result = integrate(
         config,
@@ -205,6 +224,8 @@ def simulate(
         save_stride,
         center_mass,
         mode_indices=mode_indices,
+        random_kick_energy=random_kick_energy,
+        random_kick_seed=random_kick_seed,
     )
     return (
         result.spec,
@@ -251,6 +272,8 @@ def main() -> None:
         args.thin,
         args.center_mass,
         mode_indices=mode_indices,
+        random_kick_energy=args.random_kick_energy,
+        random_kick_seed=args.random_kick_seed,
     )
 
     print(f"Configuration: {result.spec.label}")

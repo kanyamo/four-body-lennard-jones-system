@@ -157,6 +157,21 @@ def _build_equilibria() -> dict[str, EquilibriumSpec]:
             edges=((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)),
             trace_index=3,
         ),
+        "linear_chain": EquilibriumSpec(
+            key="linear_chain",
+            label="linear chain (D_∞h)",
+            positions=np.array(
+                [
+                    (-1.0842293861, 0.0, 0.0),
+                    (-0.3550510257, 0.0, 0.0),
+                    (0.3550510257, 0.0, 0.0),
+                    (1.0842293861, 0.0, 0.0),
+                ],
+                dtype=float,
+            ),
+            edges=((0, 1), (1, 2), (2, 3), (0, 2), (1, 3), (0, 3)),
+            trace_index=0,
+        ),
     }
 
 
@@ -322,6 +337,8 @@ def simulate_trajectory(
     save_stride: int,
     center_mass: float,
     record_energies: bool = False,
+    random_kick_energy: float = 0.0,
+    random_seed: int | None = 12345,
 ) -> SimulationResult:
     if save_stride < 1:
         raise ValueError("save_stride must be >= 1")
@@ -329,9 +346,7 @@ def simulate_trajectory(
     spec, equilibrium, masses = prepare_equilibrium(config, center_mass)
     all_modes = stable_modes(equilibrium, masses)
 
-    selected_indices = (
-        tuple(mode_indices) if mode_indices is not None else (0,)
-    )
+    selected_indices = tuple(mode_indices) if mode_indices is not None else (0,)
     if not selected_indices:
         raise ValueError("At least one mode index must be specified")
     if max(selected_indices) >= len(all_modes) or min(selected_indices) < 0:
@@ -352,8 +367,12 @@ def simulate_trajectory(
             )
         return vals
 
-    disp_coeffs = tuple(_expand(mode_displacements, len(selected_indices), "mode_displacements"))
-    vel_coeffs = tuple(_expand(mode_velocities, len(selected_indices), "mode_velocities"))
+    disp_coeffs = tuple(
+        _expand(mode_displacements, len(selected_indices), "mode_displacements")
+    )
+    vel_coeffs = tuple(
+        _expand(mode_velocities, len(selected_indices), "mode_velocities")
+    )
 
     mode_vectors: list[np.ndarray] = []
     mode_eigs: list[float] = []
@@ -365,6 +384,17 @@ def simulate_trajectory(
         mode_eigs.append(lam)
         combined_disp += disp * vec
         combined_vel += vel * vec
+
+    if random_kick_energy > 0.0:
+        rng = np.random.default_rng(random_seed)
+        noise = rng.standard_normal(size=combined_vel.shape)
+        momentum = np.sum(noise * masses[:, None], axis=0) / masses.sum()
+        noise -= momentum  # remove net momentum before scaling
+        k_noise = kinetic_energy(noise, masses)
+        if k_noise > 0.0:
+            scale = np.sqrt(random_kick_energy / k_noise)
+            noise *= scale
+            combined_vel += noise
 
     omega2 = mode_eigs[0]
 
@@ -379,10 +409,14 @@ def simulate_trajectory(
     nsteps = int(total_time / dt)
     snaps: list[np.ndarray] = [X0.copy()]
     times: list[float] = [0.0]
-    kin_vals: list[float] | None = [kinetic_energy(V0, masses)] if record_energies else None
+    kin_vals: list[float] | None = (
+        [kinetic_energy(V0, masses)] if record_energies else None
+    )
     pot_vals: list[float] | None = [lj_total_potential(X0)] if record_energies else None
     tot_vals: list[float] | None = (
-        [kin_vals[0] + pot_vals[0]] if record_energies and kin_vals and pot_vals else None
+        [kin_vals[0] + pot_vals[0]]
+        if record_energies and kin_vals and pot_vals
+        else None
     )
 
     Xc = X0.copy()
@@ -400,7 +434,12 @@ def simulate_trajectory(
                 if tot_vals is not None:
                     tot_vals.append(kin + pot)
 
-    if record_energies and kin_vals is not None and pot_vals is not None and tot_vals is not None:
+    if (
+        record_energies
+        and kin_vals is not None
+        and pot_vals is not None
+        and tot_vals is not None
+    ):
         kinetic = np.array(kin_vals)
         potential = np.array(pot_vals)
         total = np.array(tot_vals)
