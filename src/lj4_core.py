@@ -45,6 +45,16 @@ class SimulationResult:
     displacement_coeffs: tuple[float, ...]
     velocity_coeffs: tuple[float, ...]
     mode_shapes: tuple[np.ndarray, ...]
+    modal_basis: "ModalBasis"
+    modal_coordinates: np.ndarray
+
+
+@dataclass(frozen=True)
+class ModalBasis:
+    eigenvalues: np.ndarray
+    vectors: np.ndarray
+    classifications: tuple[str, ...]
+    labels: tuple[str, ...]
 
 
 def _regular_tetrahedron() -> np.ndarray:
@@ -277,6 +287,142 @@ def build_hessian(positions: np.ndarray) -> np.ndarray:
     return H
 
 
+def _mass_repetition(masses: np.ndarray) -> np.ndarray:
+    return np.repeat(masses, 3)
+
+
+def _mass_inner(vec_a: np.ndarray, vec_b: np.ndarray, mass_diag: np.ndarray) -> float:
+    return float(np.dot(vec_a * mass_diag, vec_b))
+
+
+def _normalize_mass(vec: np.ndarray, mass_diag: np.ndarray, tol: float) -> np.ndarray | None:
+    norm_sq = _mass_inner(vec, vec, mass_diag)
+    if norm_sq <= tol:
+        return None
+    inv_norm = 1.0 / math.sqrt(norm_sq)
+    return vec * inv_norm
+
+
+def _translation_seeds(n_particles: int) -> list[np.ndarray]:
+    seeds: list[np.ndarray] = []
+    for axis in range(3):
+        vec = np.zeros((n_particles, 3), dtype=float)
+        vec[:, axis] = 1.0
+        seeds.append(vec.reshape(-1))
+    return seeds
+
+
+def _rotation_seeds(positions: np.ndarray) -> list[np.ndarray]:
+    seeds: list[np.ndarray] = []
+    for axis in range(3):
+        vec = np.zeros_like(positions)
+        for i, (x, y, z) in enumerate(positions):
+            if axis == 0:  # rotation about x
+                vec[i] = (0.0, -z, y)
+            elif axis == 1:  # rotation about y
+                vec[i] = (z, 0.0, -x)
+            else:  # rotation about z
+                vec[i] = (-y, x, 0.0)
+        seeds.append(vec.reshape(-1))
+    return seeds
+
+
+def compute_modal_basis(
+    positions: np.ndarray,
+    masses: np.ndarray,
+    zero_tol: float = 1e-8,
+) -> ModalBasis:
+    if np.any(masses <= 0):
+        raise ValueError("Masses must be positive for modal analysis.")
+
+    mass_diag = _mass_repetition(masses)
+    weights = np.sqrt(mass_diag)
+    H = build_hessian(positions)
+    Hmw = H / weights[:, None]
+    Hmw = Hmw / weights[None, :]
+    eigvals, eigvecs = np.linalg.eigh(Hmw)
+    coord_modes = eigvecs / weights[:, None]
+
+    basis_vectors: list[np.ndarray] = []
+    eigenvalues: list[float] = []
+    classifications: list[str] = []
+    labels: list[str] = []
+    total_dim = positions.size
+    zero_indices: list[int] = []
+
+    scale = max(1.0, float(np.max(np.abs(eigvals))))
+    classification_tol = zero_tol * scale
+
+    for idx, lam in enumerate(eigvals):
+        vec = coord_modes[:, idx]
+        if abs(lam) <= classification_tol:
+            zero_indices.append(idx)
+            continue
+        normalized = _normalize_mass(vec, mass_diag, tol=1e-18)
+        if normalized is None:
+            continue
+        basis_vectors.append(normalized)
+        eigenvalues.append(float(lam))
+        if lam > 0.0:
+            classifications.append("stable")
+            labels.append(f"stable_{idx}")
+        else:
+            classifications.append("unstable")
+            labels.append(f"unstable_{idx}")
+
+    expected_total = total_dim
+    seeds = _translation_seeds(len(masses))
+    seeds.extend(_rotation_seeds(positions))
+
+    def add_seed(seed_vec: np.ndarray, label: str) -> bool:
+        if len(basis_vectors) >= expected_total:
+            return False
+        candidate = seed_vec.astype(float, copy=True)
+        for existing in basis_vectors:
+            candidate -= _mass_inner(existing, candidate, mass_diag) * existing
+        normalized = _normalize_mass(candidate, mass_diag, tol=1e-18)
+        if normalized is None:
+            return False
+        basis_vectors.append(normalized)
+        eigenvalues.append(0.0)
+        classifications.append("zero")
+        labels.append(label)
+        return True
+
+    zero_labels = [
+        "translation_x",
+        "translation_y",
+        "translation_z",
+        "rotation_x",
+        "rotation_y",
+        "rotation_z",
+    ]
+
+    for seed, label in zip(seeds, zero_labels):
+        add_seed(seed, label)
+
+    if len(basis_vectors) < expected_total:
+        for idx in zero_indices:
+            if len(basis_vectors) >= expected_total:
+                break
+            vec = coord_modes[:, idx]
+            added = add_seed(vec, f"zero_{idx}")
+            if not added:
+                continue
+
+    if len(basis_vectors) != expected_total:
+        raise RuntimeError("Failed to construct a complete modal basis.")
+
+    vectors = np.column_stack(basis_vectors)
+    eigenvalues_array = np.array(eigenvalues, dtype=float)
+    return ModalBasis(
+        eigenvalues=eigenvalues_array,
+        vectors=vectors,
+        classifications=tuple(classifications),
+        labels=tuple(labels),
+    )
+
+
 def recenter(points: np.ndarray, masses: np.ndarray) -> np.ndarray:
     com = np.average(points, axis=0, weights=masses)
     return points - com
@@ -345,6 +491,9 @@ def simulate_trajectory(
 
     spec, equilibrium, masses = prepare_equilibrium(config, center_mass)
     all_modes = stable_modes(equilibrium, masses)
+    modal_basis = compute_modal_basis(equilibrium, masses)
+    mass_diag = _mass_repetition(masses)
+    equilibrium_flat = equilibrium.reshape(-1)
 
     selected_indices = tuple(mode_indices) if mode_indices is not None else (0,)
     if not selected_indices:
@@ -452,6 +601,14 @@ def simulate_trajectory(
         energy_initial = None
         energy_final = None
 
+    total_dim = equilibrium_flat.size
+    modal_coordinates = np.zeros((len(snaps), total_dim))
+    basis_T = modal_basis.vectors.T
+    for idx, snapshot in enumerate(snaps):
+        delta_flat = snapshot.reshape(-1) - equilibrium_flat
+        projected = basis_T @ (mass_diag * delta_flat)
+        modal_coordinates[idx] = projected
+
     return SimulationResult(
         spec=spec,
         omega2=omega2,
@@ -470,12 +627,15 @@ def simulate_trajectory(
         displacement_coeffs=disp_coeffs,
         velocity_coeffs=vel_coeffs,
         mode_shapes=tuple(mode_vectors),
+        modal_basis=modal_basis,
+        modal_coordinates=modal_coordinates,
     )
 
 
 __all__ = [
     "EquilibriumSpec",
     "SimulationResult",
+    "ModalBasis",
     "EQUILIBRIA",
     "available_configs",
     "lj_force_pair_3d",
@@ -491,4 +651,5 @@ __all__ = [
     "stable_modes",
     "prepare_equilibrium",
     "simulate_trajectory",
+    "compute_modal_basis",
 ]

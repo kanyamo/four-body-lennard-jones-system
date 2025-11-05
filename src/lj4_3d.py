@@ -56,6 +56,13 @@ def save_summary_json(
         },
         "initial_displacement": result.mode_shape.tolist(),
         "initial_velocity": result.initial_velocity.tolist(),
+        "modal_basis": {
+            "eigenvalues": result.modal_basis.eigenvalues.tolist(),
+            "classifications": list(result.modal_basis.classifications),
+            "labels": list(result.modal_basis.labels),
+            "vectors": result.modal_basis.vectors.tolist(),
+        },
+        "modal_coordinates": result.modal_coordinates.tolist(),
         "energies": {
             "kinetic": result.kinetic.tolist(),
             "potential": result.potential.tolist(),
@@ -85,6 +92,27 @@ def plot_energy_series(
     plt.ylabel("energy")
     plt.title("Energy budget vs time")
     plt.legend()
+    plt.tight_layout()
+    plt.savefig(path, dpi=160)
+    plt.close()
+
+
+def plot_modal_series(
+    path: Path,
+    times: np.ndarray,
+    modal_coords: np.ndarray,
+    indices: list[int],
+    labels: Seq[str],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(6, 3.5))
+    for idx in indices:
+        plt.plot(times, modal_coords[:, idx], label=labels[idx])
+    plt.xlabel("time")
+    plt.ylabel("modal coordinate")
+    plt.title("Modal coordinates vs time")
+    plt.legend(loc="best", fontsize="small")
     plt.tight_layout()
     plt.savefig(path, dpi=160)
     plt.close()
@@ -151,6 +179,24 @@ def parse_args() -> argparse.Namespace:
         help="optional PNG path plotting kinetic/potential/total energies",
     )
     ap.add_argument(
+        "--modal-report",
+        type=str,
+        default="unstable",
+        help="comma-separated modal classes to print (stable,unstable,zero,all,none)",
+    )
+    ap.add_argument(
+        "--plot-modal",
+        type=Path,
+        default=None,
+        help="optional PNG path plotting modal coordinates for selected classes",
+    )
+    ap.add_argument(
+        "--plot-modal-categories",
+        type=str,
+        default=None,
+        help="comma-separated modal classes to plot (default: same as --modal-report)",
+    )
+    ap.add_argument(
         "--random-kick-energy",
         type=float,
         default=0.01,
@@ -169,6 +215,42 @@ def _ensure_float_list(value: float | Seq[float]) -> list[float]:
     if isinstance(value, Seq) and not isinstance(value, (str, bytes)):
         return [float(v) for v in value]
     return [float(value)]
+
+
+def _parse_modal_categories(raw: str, arg_name: str) -> tuple[str, ...]:
+    normalized = raw.strip().lower()
+    if normalized == "none":
+        return ()
+    if normalized == "all":
+        return ("unstable", "stable", "zero")
+    items = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    valid = {"unstable", "stable", "zero"}
+    invalid = [item for item in items if item not in valid]
+    if invalid:
+        raise ValueError(
+            f"{arg_name} contains invalid modal class(es): {', '.join(invalid)}"
+        )
+    # preserve user order but drop duplicates
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return tuple(ordered)
+
+
+def _collect_modal_indices(
+    classifications: Seq[str],
+    target_categories: Seq[str],
+) -> dict[str, list[int]]:
+    mapping: dict[str, list[int]] = {cat: [] for cat in target_categories}
+    for idx, cls in enumerate(classifications):
+        for category in target_categories:
+            if cls == category:
+                mapping[category].append(idx)
+                break
+    return mapping
 
 
 def integrate(
@@ -262,6 +344,15 @@ def main() -> None:
     mode_indices = tuple(parse_int_list(args.modes, "--modes"))
     mode_displacements = parse_float_list(args.mode_displacement, "--mode-displacement")
     mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
+    modal_report_categories = _parse_modal_categories(
+        args.modal_report, "--modal-report"
+    )
+    if args.plot_modal_categories is None:
+        modal_plot_categories = modal_report_categories
+    else:
+        modal_plot_categories = _parse_modal_categories(
+            args.plot_modal_categories, "--plot-modal-categories"
+        )
 
     result = integrate(
         args.config,
@@ -302,6 +393,23 @@ def main() -> None:
         )
         print(f"Total energy: {result.total[0]:.8f} → {result.total[-1]:.8f}")
 
+    if modal_report_categories:
+        modal_groups = _collect_modal_indices(
+            result.modal_basis.classifications, modal_report_categories
+        )
+        for category in modal_report_categories:
+            indices = modal_groups.get(category, [])
+            if not indices:
+                continue
+            label_prefix = category.capitalize()
+            entries = []
+            for idx in indices:
+                label = result.modal_basis.labels[idx]
+                initial_coeff = result.modal_coordinates[0, idx]
+                final_coeff = result.modal_coordinates[-1, idx]
+                entries.append(f"{label}: {initial_coeff:.6f} → {final_coeff:.6f}")
+            print(f"{label_prefix} modal coordinates:", "; ".join(entries))
+
     if args.save_traj is not None:
         save_trajectory_csv(args.save_traj, result.times, result.positions)
         print(f"Trajectory saved to {args.save_traj}")
@@ -336,6 +444,31 @@ def main() -> None:
             result.total,
         )
         print(f"Energy plot saved to {args.plot_energies}")
+
+    if args.plot_modal is not None and modal_plot_categories:
+        modal_groups = _collect_modal_indices(
+            result.modal_basis.classifications, modal_plot_categories
+        )
+        plot_indices: list[int] = []
+        for category in modal_plot_categories:
+            plot_indices.extend(modal_groups.get(category, []))
+        if plot_indices:
+            plot_modal_series(
+                args.plot_modal,
+                result.times,
+                result.modal_coordinates,
+                plot_indices,
+                result.modal_basis.labels,
+            )
+            print(
+                f"Modal coordinate plot saved to {args.plot_modal} "
+                f"(classes: {', '.join(modal_plot_categories)})"
+            )
+        else:
+            print(
+                "No modal indices matched the requested plot categories; "
+                "plot was not produced."
+            )
 
 
 if __name__ == "__main__":
