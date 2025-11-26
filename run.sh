@@ -1,10 +1,11 @@
 uv run src/lj4_3d.py \
     --config rhombus \
-    --mode-displacement 0.0 \
+    --mode-displacement 0.000001 \
     --mode-velocity 0.0 \
-    --T 40 \
+    --modes 4 \
+    --T 20 \
     --thin 10 \
-    --random-kick-energy 0.00001 \
+    --modal-kick-energy 0.000000 \
     --plot-modal results/modal_plot.png \
     --plot-modal-categories stable,unstable \
     --plot-energies results/energy_plot.png \

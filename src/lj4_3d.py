@@ -108,9 +108,10 @@ def plot_modal_series(
 
     plt.figure(figsize=(6, 3.5))
     for idx in indices:
-        plt.plot(times, modal_coords[:, idx], label=labels[idx])
+        plt.plot(times, np.abs(modal_coords[:, idx]), label=labels[idx])
     plt.xlabel("time")
     plt.ylabel("modal coordinate")
+    plt.yscale("log")
     plt.title("Modal coordinates vs time")
     plt.legend(loc="best", fontsize="small")
     plt.tight_layout()
