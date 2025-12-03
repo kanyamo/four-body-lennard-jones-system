@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from lj4_core import EquilibriumSpec, ModalBasis, SimulationResult
+from lj4_core import EquilibriumSpec, SimulationResult
 
 BUNDLE_VERSION = 1
 METADATA_FILENAME = "metadata.json"
@@ -65,18 +65,12 @@ def bundle_from_result(
             "displacement_coeffs": list(result.displacement_coeffs),
             "velocity_coeffs": list(result.velocity_coeffs),
         },
-        "energies": {
-            "stored": result.kinetic is not None
-            and result.potential is not None
-            and result.total is not None,
-            "initial": result.energy_initial,
-            "final": result.energy_final,
-        },
-        "modal_basis": {
-            "classifications": list(result.modal_basis.classifications),
-            "labels": list(result.modal_basis.labels),
-        },
         "dihedral_edges": [list(edge) for edge in result.dihedral_edges],
+        "dt": result.dt,
+        "total_time": result.total_time,
+        "save_stride": result.save_stride,
+        "center_mass": result.center_mass,
+        "modal_kick_energy": result.modal_kick_energy,
     }
 
     arrays: dict[str, np.ndarray] = {
@@ -84,21 +78,11 @@ def bundle_from_result(
         "masses": result.masses,
         "times": result.times,
         "positions": result.positions,
-        "mode_shape": result.mode_shape,
+        "velocities": result.velocities,
+        "initial_displacement": result.initial_displacement,
         "initial_velocity": result.initial_velocity,
         "mode_shapes": _stack_mode_shapes(result.mode_shapes, result.positions.shape[1]),
-        "modal_basis_eigenvalues": result.modal_basis.eigenvalues,
-        "modal_basis_vectors": result.modal_basis.vectors,
-        "modal_coordinates": result.modal_coordinates,
-        "dihedral_angles": result.dihedral_angles,
-        "dihedral_planarity_gap": result.dihedral_planarity_gap,
     }
-    if result.kinetic is not None:
-        arrays["kinetic"] = result.kinetic
-    if result.potential is not None:
-        arrays["potential"] = result.potential
-    if result.total is not None:
-        arrays["total"] = result.total
     return meta, arrays
 
 
@@ -174,12 +158,6 @@ def load_simulation_bundle(bundle_dir: Path) -> LoadedSimulation:
         edges=tuple(tuple(edge) for edge in config_meta["edges"]),
         trace_index=int(config_meta["trace_index"]),
     )
-    modal_basis = ModalBasis(
-        eigenvalues=arrays["modal_basis_eigenvalues"],
-        vectors=arrays["modal_basis_vectors"],
-        classifications=tuple(meta["modal_basis"]["classifications"]),
-        labels=tuple(meta["modal_basis"]["labels"]),
-    )
     mode_shapes_arr = arrays.get(
         "mode_shapes",
         np.zeros((0, arrays["positions"].shape[1], 3), dtype=float),
@@ -188,32 +166,25 @@ def load_simulation_bundle(bundle_dir: Path) -> LoadedSimulation:
         mode_shapes_arr[idx] for idx in range(mode_shapes_arr.shape[0])
     )
 
-    def _optional_array(name: str) -> np.ndarray | None:
-        return arrays[name] if name in arrays else None
-
-    energies_meta = meta.get("energies", {})
     result = SimulationResult(
         spec=spec,
         omega2=float(meta["omega2"]),
-        mode_shape=arrays["mode_shape"],
+        initial_displacement=arrays["initial_displacement"],
         initial_velocity=arrays["initial_velocity"],
         masses=arrays["masses"],
         times=arrays["times"],
         positions=arrays["positions"],
-        kinetic=_optional_array("kinetic"),
-        potential=_optional_array("potential"),
-        total=_optional_array("total"),
-        energy_initial=energies_meta.get("initial"),
-        energy_final=energies_meta.get("final"),
+        velocities=arrays["velocities"],
+        dt=float(meta.get("dt", 0.0)),
+        total_time=float(meta.get("total_time", arrays["times"][-1] if len(arrays["times"]) else 0.0)),
+        save_stride=int(meta.get("save_stride", 1)),
+        center_mass=float(meta.get("center_mass", 1.0)),
+        modal_kick_energy=float(meta.get("modal_kick_energy", 0.0)),
         mode_indices=tuple(meta["mode_selection"]["indices"]),
         mode_eigenvalues=tuple(meta["mode_selection"]["eigenvalues"]),
         displacement_coeffs=tuple(meta["mode_selection"]["displacement_coeffs"]),
         velocity_coeffs=tuple(meta["mode_selection"]["velocity_coeffs"]),
         mode_shapes=mode_shapes,
-        modal_basis=modal_basis,
-        modal_coordinates=arrays["modal_coordinates"],
         dihedral_edges=tuple(tuple(edge) for edge in meta["dihedral_edges"]),
-        dihedral_angles=arrays["dihedral_angles"],
-        dihedral_planarity_gap=arrays["dihedral_planarity_gap"],
     )
     return LoadedSimulation(result=result, metadata=meta)

@@ -52,8 +52,8 @@ uv run src/lj4_3d_anim.py --config triangle_center --modes 0 --mode-displacement
   - `--plot`: PNG（y(t)）
 - 3D (`lj4_3d.py`)
   - バンドル（デフォルトはキャッシュに自動保存）: `metadata.json` + `series.npz`
-    - `metadata.json`: 平衡配置情報、入力パラメータ、モード選択、エネルギー概要など
-    - `series.npz`: 時系列配列（位置、モード座標、エネルギー、二面角など一式）
+    - `metadata.json`: 平衡配置情報、入力パラメータ、モード選択など
+    - `series.npz`: 時系列配列（位置・速度・初期変位/速度など基礎データ）。モード座標・エネルギー・二面角などは読み込み時に再計算する設計。
   - オプション出力: CSV（`--save-traj`）、サマリー JSON（`--save-summary`）、各種プロット PNG
 - 3D アニメーション (`lj4_3d_anim.py`)
   - バンドルを読んで軌道を可視化（保存も `--use-cache` または `--save-bundle` で可能）

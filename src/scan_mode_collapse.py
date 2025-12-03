@@ -17,6 +17,8 @@ import numpy as np
 
 from lj4_core import (
     available_configs,
+    compute_energy_series,
+    compute_modal_projections,
     kinetic_energy,
     prepare_equilibrium,
     simulate_trajectory,
@@ -192,19 +194,13 @@ def main() -> None:
             total_time=args.T,
             save_stride=args.thin,
             center_mass=args.center_mass,
-            record_energies=True,
             modal_kick_energy=args.modal_kick_energy,
         )
-        if result.potential is None or result.kinetic is None:
-            raise RuntimeError("simulation did not return energy diagnostics")
         times = np.asarray(result.times)
-        potential = np.asarray(result.potential)
-        kinetic = np.asarray(result.kinetic)
-        modal_coords = np.asarray(result.modal_coordinates)
+        kinetic, potential, _ = compute_energy_series(result)
+        modal_coords, _, modal_basis = compute_modal_projections(result)
         unstable_indices = [
-            idx
-            for idx, cls in enumerate(result.modal_basis.classifications)
-            if cls == "unstable"
+            idx for idx, cls in enumerate(modal_basis.classifications) if cls == "unstable"
         ]
         collapse = collapse_time_modal(
             times, modal_coords, unstable_indices, args.unstable_threshold

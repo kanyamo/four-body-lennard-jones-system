@@ -284,7 +284,6 @@ def main() -> None:
                     total_time=args.T,
                     save_stride=args.thin,
                     center_mass=args.center_mass,
-                    record_energies=True,
                     modal_kick_energy=args.modal_kick_energy,
                 )
                 save_simulation_bundle(cache_dir, result, run_parameters)
@@ -302,7 +301,6 @@ def main() -> None:
                 total_time=args.T,
                 save_stride=args.thin,
                 center_mass=args.center_mass,
-                record_energies=args.save_bundle is not None,
                 modal_kick_energy=args.modal_kick_energy,
             )
             if args.save_bundle is not None:

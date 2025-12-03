@@ -8,6 +8,7 @@ import argparse
 import json
 from collections.abc import Sequence as Seq
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -22,6 +23,10 @@ from lj4_storage import (
 from lj4_core import (
     SimulationResult,
     available_configs,
+    compute_dihedral_series,
+    compute_energy_series,
+    compute_modal_energies,
+    compute_modal_projections,
     plot_dihedral_series,
     simulate_trajectory,
 )
@@ -44,6 +49,10 @@ def save_summary_json(
     total_time: float,
     save_stride: int,
 ) -> None:
+    modal_coords, modal_vels, modal_basis = compute_modal_projections(result)
+    dihedral_angles, dihedral_gap = compute_dihedral_series(result)
+    kinetic, potential, total = compute_energy_series(result)
+
     summary = {
         "config": result.spec.key,
         "label": result.spec.label,
@@ -63,25 +72,26 @@ def save_summary_json(
             "displacement_coeffs": list(result.displacement_coeffs),
             "velocity_coeffs": list(result.velocity_coeffs),
         },
-        "initial_displacement": result.mode_shape.tolist(),
+        "initial_displacement": result.initial_displacement.tolist(),
         "initial_velocity": result.initial_velocity.tolist(),
         "modal_basis": {
-            "eigenvalues": result.modal_basis.eigenvalues.tolist(),
-            "classifications": list(result.modal_basis.classifications),
-            "labels": list(result.modal_basis.labels),
-            "vectors": result.modal_basis.vectors.tolist(),
+            "eigenvalues": modal_basis.eigenvalues.tolist(),
+            "classifications": list(modal_basis.classifications),
+            "labels": list(modal_basis.labels),
+            "vectors": modal_basis.vectors.tolist(),
         },
-        "modal_coordinates": result.modal_coordinates.tolist(),
+        "modal_coordinates": modal_coords.tolist(),
+        "modal_velocities": modal_vels.tolist(),
         "dihedral_edges": [list(edge) for edge in result.dihedral_edges],
-        "dihedral_angles": result.dihedral_angles.tolist(),
-        "dihedral_planarity_gap": result.dihedral_planarity_gap.tolist(),
+        "dihedral_angles": dihedral_angles.tolist(),
+        "dihedral_planarity_gap": dihedral_gap.tolist(),
         "energies": {
-            "kinetic": result.kinetic.tolist(),
-            "potential": result.potential.tolist(),
-            "total": result.total.tolist(),
+            "kinetic": kinetic.tolist(),
+            "potential": potential.tolist(),
+            "total": total.tolist(),
         },
-        "energy_initial": result.energy_initial,
-        "energy_final": result.energy_final,
+        "energy_initial": float(total[0]),
+        "energy_final": float(total[-1]),
     }
     Path(path).write_text(json.dumps(summary, indent=2))
 
@@ -113,22 +123,51 @@ def plot_modal_series(
     path: Path,
     times: np.ndarray,
     modal_coords: np.ndarray,
+    modal_vels: np.ndarray,
+    modal_energy: np.ndarray,
     indices: list[int],
     labels: Seq[str],
+    params_text: str,
 ) -> None:
     import matplotlib.pyplot as plt
 
-    plt.figure(figsize=(6, 3.5))
-    for idx in indices:
-        plt.plot(times, np.abs(modal_coords[:, idx]), label=labels[idx])
-    plt.xlabel("time")
-    plt.ylabel("modal coordinate")
-    plt.yscale("log")
-    plt.title("Modal coordinates vs time")
-    plt.legend(loc="best", fontsize="small")
-    plt.tight_layout()
-    plt.savefig(path, dpi=160)
-    plt.close()
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 6.8))
+    ax_q, ax_v, ax_e, ax_meta = axes.flatten()
+
+    def plot_lines(ax, data, ylabel: str) -> None:
+        for idx in indices:
+            ax.plot(times, np.abs(data[:, idx]), label=labels[idx])
+        ax.set_xlabel("time")
+        ax.set_ylabel(ylabel)
+        ax.set_yscale("log")
+        ax.grid(True, linestyle="--", alpha=0.3)
+
+    plot_lines(ax_q, modal_coords, "modal |q|")
+    ax_q.set_title("Modal coordinates")
+
+    plot_lines(ax_v, modal_vels, "modal |q_dot|")
+    ax_v.set_title("Modal velocities")
+
+    plot_lines(ax_e, modal_energy, "modal energy")
+    ax_e.set_title("Modal energies")
+
+    ax_meta.axis("off")
+    ax_meta.text(
+        0.02,
+        0.98,
+        params_text,
+        ha="left",
+        va="top",
+        fontsize="small",
+        wrap=True,
+    )
+
+    handles, legend_labels = ax_q.get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, legend_labels, loc="upper center", ncol=4, fontsize="small")
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    plt.savefig(path, dpi=170)
+    plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
@@ -346,7 +385,6 @@ def integrate(
         total_time=total_time,
         save_stride=save_stride,
         center_mass=center_mass,
-        record_energies=True,
         modal_kick_energy=modal_kick_energy,
     )
 
@@ -375,18 +413,19 @@ def simulate(
         mode_indices=mode_indices,
         modal_kick_energy=modal_kick_energy,
     )
+    kinetic, potential, total = compute_energy_series(result)
     return (
         result.spec,
         result.omega2,
-        result.mode_shape,
+        result.initial_displacement,
         result.masses,
         result.times,
         result.positions,
-        result.kinetic,
-        result.potential,
-        result.total,
-        result.energy_initial,
-        result.energy_final,
+        kinetic,
+        potential,
+        total,
+        float(total[0]),
+        float(total[-1]),
     )
 
 
@@ -509,20 +548,44 @@ def main() -> None:
     print(f"Integrator dt: {run_dt:.5f}, total_time: {run_T}")
     print(f"Saved frames: {len(result.times)} (every {run_stride} steps)")
     print(f"Time span: {result.times[0]:.3f} → {result.times[-1]:.3f}")
-    if (
-        result.kinetic is not None
-        and result.potential is not None
-        and result.total is not None
-    ):
-        print(f"Kinetic energy: {result.kinetic[0]:.8f} → {result.kinetic[-1]:.8f}")
-        print(
-            f"Potential energy: {result.potential[0]:.8f} → {result.potential[-1]:.8f}"
-        )
-        print(f"Total energy: {result.total[0]:.8f} → {result.total[-1]:.8f}")
+    energy_series: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+    modal_data: tuple[np.ndarray, np.ndarray, Any] | None = None
+    modal_energy_data: tuple[np.ndarray, np.ndarray, np.ndarray, Any] | None = None
+    dihedral_data: tuple[np.ndarray, np.ndarray] | None = None
+
+    def get_energy_series() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        nonlocal energy_series
+        if energy_series is None:
+            energy_series = compute_energy_series(result)
+        return energy_series
+
+    def get_modal_data() -> tuple[np.ndarray, np.ndarray, Any]:
+        nonlocal modal_data
+        if modal_data is None:
+            modal_data = compute_modal_projections(result)
+        return modal_data
+
+    def get_modal_energy_data() -> tuple[np.ndarray, np.ndarray, np.ndarray, Any]:
+        nonlocal modal_energy_data
+        if modal_energy_data is None:
+            modal_energy_data = compute_modal_energies(result)
+        return modal_energy_data
+
+    def get_dihedral_data() -> tuple[np.ndarray, np.ndarray]:
+        nonlocal dihedral_data
+        if dihedral_data is None:
+            dihedral_data = compute_dihedral_series(result)
+        return dihedral_data
+
+    kinetic, potential, total = get_energy_series()
+    print(f"Kinetic energy: {kinetic[0]:.8f} → {kinetic[-1]:.8f}")
+    print(f"Potential energy: {potential[0]:.8f} → {potential[-1]:.8f}")
+    print(f"Total energy: {total[0]:.8f} → {total[-1]:.8f}")
 
     if modal_report_categories:
+        modal_coords, _, modal_basis = get_modal_data()
         modal_groups = _collect_modal_indices(
-            result.modal_basis.classifications, modal_report_categories
+            modal_basis.classifications, modal_report_categories
         )
         for category in modal_report_categories:
             indices = modal_groups.get(category, [])
@@ -531,9 +594,9 @@ def main() -> None:
             label_prefix = category.capitalize()
             entries = []
             for idx in indices:
-                label = result.modal_basis.labels[idx]
-                initial_coeff = result.modal_coordinates[0, idx]
-                final_coeff = result.modal_coordinates[-1, idx]
+                label = modal_basis.labels[idx]
+                initial_coeff = modal_coords[0, idx]
+                final_coeff = modal_coords[-1, idx]
                 entries.append(f"{label}: {initial_coeff:.6f} → {final_coeff:.6f}")
             print(f"{label_prefix} modal coordinates:", "; ".join(entries))
 
@@ -541,14 +604,7 @@ def main() -> None:
         save_trajectory_csv(args.save_traj, result.times, result.positions)
         print(f"Trajectory saved to {args.save_traj}")
 
-    if (
-        args.save_summary is not None
-        and result.kinetic is not None
-        and result.potential is not None
-        and result.total is not None
-        and result.energy_initial is not None
-        and result.energy_final is not None
-    ):
+    if args.save_summary is not None:
         save_summary_json(
             args.save_summary,
             result,
@@ -558,23 +614,22 @@ def main() -> None:
         )
         print(f"Summary saved to {args.save_summary}")
 
-    if (
-        args.plot_energies is not None
-        and result.kinetic is not None
-        and result.potential is not None
-    ):
+    if args.plot_energies is not None:
+        kinetic, potential, total = get_energy_series()
         plot_energy_series(
             args.plot_energies,
             result.times,
-            result.kinetic,
-            result.potential,
-            result.total,
+            kinetic,
+            potential,
+            total,
         )
         print(f"Energy plot saved to {args.plot_energies}")
 
     if args.plot_modal is not None and modal_plot_categories:
+        modal_coords, modal_vels, modal_basis = get_modal_data()
+        modal_ke, modal_pe, modal_te, _ = get_modal_energy_data()
         modal_groups = _collect_modal_indices(
-            result.modal_basis.classifications, modal_plot_categories
+            modal_basis.classifications, modal_plot_categories
         )
         plot_indices: list[int] = []
         for category in modal_plot_categories:
@@ -583,9 +638,19 @@ def main() -> None:
             plot_modal_series(
                 args.plot_modal,
                 result.times,
-                result.modal_coordinates,
+                modal_coords,
+                modal_vels,
+                modal_te,
                 plot_indices,
-                result.modal_basis.labels,
+                modal_basis.labels,
+                params_text=(
+                    f"config: {result.spec.label}\n"
+                    f"modes: {', '.join(str(i) for i in result.mode_indices)}\n"
+                    f"disp: {', '.join(f'{v:.4f}' for v in result.displacement_coeffs)}\n"
+                    f"vel: {', '.join(f'{v:.4f}' for v in result.velocity_coeffs)}\n"
+                    f"dt={run_dt}, T={run_T}, stride={run_stride}\n"
+                    f"center_mass={run_parameters.get('center_mass', args.center_mass)}, kick={run_parameters.get('modal_kick_energy', args.modal_kick_energy)}"
+                ),
             )
             print(
                 f"Modal coordinate plot saved to {args.plot_modal} "
@@ -597,10 +662,11 @@ def main() -> None:
                 "plot was not produced."
             )
     if args.plot_dihedral is not None:
+        dihedral_angles, _ = get_dihedral_data()
         plot_dihedral_series(
             args.plot_dihedral,
             result.times,
-            result.dihedral_angles,
+            dihedral_angles,
             edges=result.dihedral_edges,
             quantity=args.dihedral_quantity,
         )

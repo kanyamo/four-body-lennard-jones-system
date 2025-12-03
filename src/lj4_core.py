@@ -30,26 +30,23 @@ class EquilibriumSpec:
 class SimulationResult:
     spec: EquilibriumSpec
     omega2: float
-    mode_shape: np.ndarray
+    initial_displacement: np.ndarray
     initial_velocity: np.ndarray
     masses: np.ndarray
     times: np.ndarray
     positions: np.ndarray
-    kinetic: np.ndarray | None
-    potential: np.ndarray | None
-    total: np.ndarray | None
-    energy_initial: float | None
-    energy_final: float | None
+    velocities: np.ndarray
+    dt: float
+    total_time: float
+    save_stride: int
+    center_mass: float
+    modal_kick_energy: float
     mode_indices: tuple[int, ...]
     mode_eigenvalues: tuple[float, ...]
     displacement_coeffs: tuple[float, ...]
     velocity_coeffs: tuple[float, ...]
     mode_shapes: tuple[np.ndarray, ...]
-    modal_basis: "ModalBasis"
-    modal_coordinates: np.ndarray
     dihedral_edges: tuple[tuple[int, int], ...]
-    dihedral_angles: np.ndarray
-    dihedral_planarity_gap: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -575,7 +572,6 @@ def simulate_trajectory(
     total_time: float,
     save_stride: int,
     center_mass: float,
-    record_energies: bool = False,
     modal_kick_energy: float = 0.0,
 ) -> SimulationResult:
     if save_stride < 1:
@@ -584,8 +580,6 @@ def simulate_trajectory(
     spec, equilibrium, masses = prepare_equilibrium(config, center_mass)
     all_modes = stable_modes(equilibrium, masses)
     modal_basis = compute_modal_basis(equilibrium, masses)
-    mass_diag = _mass_repetition(masses)
-    equilibrium_flat = equilibrium.reshape(-1)
 
     selected_indices = tuple(mode_indices) if mode_indices is not None else (0,)
     if not selected_indices:
@@ -659,15 +653,7 @@ def simulate_trajectory(
     nsteps = int(total_time / dt)
     snaps: list[np.ndarray] = [X0.copy()]
     times: list[float] = [0.0]
-    kin_vals: list[float] | None = (
-        [kinetic_energy(V0, masses)] if record_energies else None
-    )
-    pot_vals: list[float] | None = [lj_total_potential(X0)] if record_energies else None
-    tot_vals: list[float] | None = (
-        [kin_vals[0] + pot_vals[0]]
-        if record_energies and kin_vals and pot_vals
-        else None
-    )
+    velocities_series: list[np.ndarray] = [V0.copy()]
 
     Xc = X0.copy()
     Vc = V0.copy()
@@ -676,70 +662,77 @@ def simulate_trajectory(
         if (step + 1) % save_stride == 0:
             snaps.append(Xc.copy())
             times.append((step + 1) * dt)
-            if record_energies and kin_vals is not None and pot_vals is not None:
-                kin = kinetic_energy(Vc, masses)
-                pot = lj_total_potential(Xc)
-                kin_vals.append(kin)
-                pot_vals.append(pot)
-                if tot_vals is not None:
-                    tot_vals.append(kin + pot)
+            velocities_series.append(Vc.copy())
 
-    if (
-        record_energies
-        and kin_vals is not None
-        and pot_vals is not None
-        and tot_vals is not None
-    ):
-        kinetic = np.array(kin_vals)
-        potential = np.array(pot_vals)
-        total = np.array(tot_vals)
-        energy_initial = float(total[0])
-        energy_final = float(total[-1])
-    else:
-        kinetic = None
-        potential = None
-        total = None
-        energy_initial = None
-        energy_final = None
-
-    total_dim = equilibrium_flat.size
-    modal_coordinates = np.zeros((len(snaps), total_dim))
-    n_edges = len(DIHEDRAL_EDGES)
-    dihedral_angles_series = np.zeros((len(snaps), n_edges))
-    dihedral_planarity_gap = np.zeros_like(dihedral_angles_series)
-    basis_T = modal_basis.vectors.T
-    for idx, snapshot in enumerate(snaps):
-        delta_flat = snapshot.reshape(-1) - equilibrium_flat
-        projected = basis_T @ (mass_diag * delta_flat)
-        modal_coordinates[idx] = projected
-        angles = dihedral_angles(snapshot)
-        dihedral_angles_series[idx] = angles
-        dihedral_planarity_gap[idx] = math.pi - angles
+    velocities_arr = np.array(velocities_series)
 
     return SimulationResult(
         spec=spec,
         omega2=omega2,
-        mode_shape=initial_displacement,
+        initial_displacement=initial_displacement,
         initial_velocity=initial_velocity,
         masses=masses,
         times=np.array(times),
         positions=np.array(snaps),
-        kinetic=kinetic,
-        potential=potential,
-        total=total,
-        energy_initial=energy_initial,
-        energy_final=energy_final,
+        velocities=velocities_arr,
+        dt=dt,
+        total_time=total_time,
+        save_stride=save_stride,
+        center_mass=center_mass,
+        modal_kick_energy=modal_kick_energy,
         mode_indices=selected_indices,
         mode_eigenvalues=tuple(mode_eigs),
         displacement_coeffs=disp_coeffs,
         velocity_coeffs=vel_coeffs,
         mode_shapes=tuple(mode_vectors),
-        modal_basis=modal_basis,
-        modal_coordinates=modal_coordinates,
         dihedral_edges=DIHEDRAL_EDGES,
-        dihedral_angles=dihedral_angles_series,
-        dihedral_planarity_gap=dihedral_planarity_gap,
     )
+
+
+def compute_energy_series(result: SimulationResult) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    kinetic = np.array([kinetic_energy(v, result.masses) for v in result.velocities])
+    potential = np.array([lj_total_potential(x) for x in result.positions])
+    total = kinetic + potential
+    return kinetic, potential, total
+
+
+def compute_modal_projections(
+    result: SimulationResult, modal_basis: ModalBasis | None = None
+) -> tuple[np.ndarray, np.ndarray, ModalBasis]:
+    basis = modal_basis or compute_modal_basis(result.spec.positions, result.masses)
+    mass_diag = _mass_repetition(result.masses)
+    basis_T = basis.vectors.T
+    eq_flat = result.spec.positions.reshape(-1)
+
+    coords = np.zeros((len(result.times), eq_flat.size))
+    velocities = np.zeros_like(coords)
+    for idx, (pos, vel) in enumerate(zip(result.positions, result.velocities)):
+        delta = pos.reshape(-1) - eq_flat
+        v_flat = vel.reshape(-1)
+        coords[idx] = basis_T @ (mass_diag * delta)
+        velocities[idx] = basis_T @ (mass_diag * v_flat)
+    return coords, velocities, basis
+
+
+def compute_modal_energies(
+    result: SimulationResult, modal_basis: ModalBasis | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, ModalBasis]:
+    coords, velocities, basis = compute_modal_projections(result, modal_basis)
+    # modal kinetic = 0.5 * v^2 (mass-normalized basisなので質量は1扱い)
+    kinetic = 0.5 * velocities**2
+    # modal potential = 0.5 * lambda * q^2 （固有値はω^2）
+    eigvals = basis.eigenvalues
+    potential = 0.5 * coords * (coords * eigvals[None, :])
+    total = kinetic + potential
+    return kinetic, potential, total, basis
+
+
+def compute_dihedral_series(
+    result: SimulationResult,
+) -> tuple[np.ndarray, np.ndarray]:
+    angles = np.array([dihedral_angles(pos) for pos in result.positions])
+    gaps = math.pi - angles
+    return angles, gaps
 
 
 __all__ = [
@@ -766,4 +759,7 @@ __all__ = [
     "prepare_equilibrium",
     "simulate_trajectory",
     "compute_modal_basis",
+    "compute_modal_projections",
+    "compute_dihedral_series",
+    "compute_energy_series",
 ]
