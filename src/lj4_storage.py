@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from lj4_core import EquilibriumSpec, ModalBasis, SimulationResult
 BUNDLE_VERSION = 1
 METADATA_FILENAME = "metadata.json"
 ARRAYS_FILENAME = "series.npz"
+CACHE_DEFAULT_DIRNAME = "results/cache"
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,46 @@ def bundle_from_result(
     if result.total is not None:
         arrays["total"] = result.total
     return meta, arrays
+
+
+def _normalize_value(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (list, tuple)):
+        return [_normalize_value(v) for v in value]
+    return value
+
+
+def canonicalize_run_parameters(params: dict[str, Any]) -> dict[str, Any]:
+    """順序と型を正規化したパラメータ辞書を作る（ハッシュの安定化用）。"""
+
+    normalized: dict[str, Any] = {}
+    for key in sorted(params.keys()):
+        normalized[key] = _normalize_value(params[key])
+    return normalized
+
+
+def compute_bundle_dir(
+    cache_root: Path, config: str, run_parameters: dict[str, Any]
+) -> tuple[Path, str]:
+    """パラメータからキャッシュ用バンドルディレクトリを決定する。
+
+    Returns: (bundle_dir, cache_key_hex)
+    """
+
+    normalized = canonicalize_run_parameters(run_parameters)
+    payload = {
+        "config": config,
+        "parameters": normalized,
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    key = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    bundle_dir = Path(cache_root) / config / key
+    return bundle_dir, key
+
+
+def bundle_exists(bundle_dir: Path) -> bool:
+    return (bundle_dir / METADATA_FILENAME).exists() and (bundle_dir / ARRAYS_FILENAME).exists()
 
 
 def save_simulation_bundle(

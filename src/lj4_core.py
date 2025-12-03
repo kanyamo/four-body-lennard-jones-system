@@ -215,7 +215,7 @@ def dihedral_angle_for_edge(
     i, j = edge
     if positions.shape[0] <= max(i, j):
         raise ValueError("Edge index out of range for provided positions.")
-    k, l = _DIHEDRAL_COMPLEMENTS[edge]
+    k, l = _DIHEDRAL_COMPLEMENTS[edge]  # noqa: E741
     pi, pj, pk, pl = positions[i], positions[j], positions[k], positions[l]
 
     edge_vec = pj - pi

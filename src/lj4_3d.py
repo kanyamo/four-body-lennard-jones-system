@@ -11,7 +11,13 @@ from pathlib import Path
 
 import numpy as np
 
-from lj4_storage import load_simulation_bundle, save_simulation_bundle
+from lj4_storage import (
+    CACHE_DEFAULT_DIRNAME,
+    bundle_exists,
+    compute_bundle_dir,
+    load_simulation_bundle,
+    save_simulation_bundle,
+)
 
 from lj4_core import (
     SimulationResult,
@@ -233,6 +239,24 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="既存バンドルを読み込んで再計算せずに出力を生成する",
     )
+    ap.add_argument(
+        "--use-cache",
+        action="store_true",
+        default=True,
+        help="パラメータから決まる場所に自動で保存・再利用する (デフォルト: 有効)",
+    )
+    ap.add_argument(
+        "--no-cache",
+        dest="use_cache",
+        action="store_false",
+        help="キャッシュを無効化する",
+    )
+    ap.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path(CACHE_DEFAULT_DIRNAME),
+        help="キャッシュ保存のベースディレクトリ",
+    )
     return ap.parse_args()
 
 
@@ -372,6 +396,9 @@ def main() -> None:
     if not loading_bundle:
         if args.center_mass <= 0.0:
             raise ValueError("--center-mass must be positive")
+    if args.use_cache and loading_bundle:
+        print("注意: --load-bundle が指定されたため --use-cache は無視します。")
+        args.use_cache = False
 
     def parse_float_list(raw: str, name: str) -> list[float]:
         parts = [item.strip() for item in str(raw).split(",") if item.strip()]
@@ -411,17 +438,6 @@ def main() -> None:
             args.mode_displacement, "--mode-displacement"
         )
         mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
-        result = integrate(
-            args.config,
-            mode_displacements,
-            mode_velocities,
-            args.dt,
-            args.T,
-            args.thin,
-            args.center_mass,
-            mode_indices=mode_indices,
-            modal_kick_energy=args.modal_kick_energy,
-        )
         run_parameters = _build_run_parameters(
             args.dt,
             args.T,
@@ -432,9 +448,47 @@ def main() -> None:
             mode_velocities,
             args.modal_kick_energy,
         )
-        if args.save_bundle is not None:
-            save_simulation_bundle(args.save_bundle, result, run_parameters)
-            print(f"バンドルを書き出しました: {args.save_bundle}")
+        if args.use_cache:
+            cache_dir, cache_key = compute_bundle_dir(
+                args.cache_dir, args.config, run_parameters
+            )
+            if bundle_exists(cache_dir):
+                loaded = load_simulation_bundle(cache_dir)
+                result = loaded.result
+                run_parameters = loaded.metadata.get("run_parameters", run_parameters)
+                print(f"キャッシュヒット: {cache_dir} (key={cache_key})")
+            else:
+                result = integrate(
+                    args.config,
+                    mode_displacements,
+                    mode_velocities,
+                    args.dt,
+                    args.T,
+                    args.thin,
+                    args.center_mass,
+                    mode_indices=mode_indices,
+                    modal_kick_energy=args.modal_kick_energy,
+                )
+                save_simulation_bundle(cache_dir, result, run_parameters)
+                print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
+            if args.save_bundle is not None and Path(args.save_bundle) != cache_dir:
+                save_simulation_bundle(args.save_bundle, result, run_parameters)
+                print(f"バンドルを書き出しました: {args.save_bundle}")
+        else:
+            result = integrate(
+                args.config,
+                mode_displacements,
+                mode_velocities,
+                args.dt,
+                args.T,
+                args.thin,
+                args.center_mass,
+                mode_indices=mode_indices,
+                modal_kick_energy=args.modal_kick_energy,
+            )
+            if args.save_bundle is not None:
+                save_simulation_bundle(args.save_bundle, result, run_parameters)
+                print(f"バンドルを書き出しました: {args.save_bundle}")
 
     print(f"Configuration: {result.spec.label}")
     mode_info = ", ".join(
