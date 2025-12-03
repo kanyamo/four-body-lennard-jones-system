@@ -81,6 +81,24 @@ def parse_args() -> argparse.Namespace:
         help="add velocity along the first available modal direction with this kinetic energy",
     )
     ap.add_argument(
+        "--random-displacement",
+        type=float,
+        default=0.0,
+        help="random displacement magnitude added to the initial condition (0 to disable)",
+    )
+    ap.add_argument(
+        "--random-kick-energy",
+        type=float,
+        default=0.0,
+        help="random kinetic energy injected along a random direction (0 to disable)",
+    )
+    ap.add_argument(
+        "--random-seed",
+        type=int,
+        default=None,
+        help="random seed for displacement/kick (if provided)",
+    )
+    ap.add_argument(
         "--save-bundle",
         type=str,
         default=None,
@@ -221,6 +239,11 @@ def simulate(
 def main() -> None:
     args = parse_args()
     loading_bundle = args.load_bundle is not None
+    random_used = args.random_displacement > 0.0 or args.random_kick_energy > 0.0
+    if random_used and args.use_cache:
+        raise ValueError("--no-cache must be specified when using random perturbations")
+    if random_used and loading_bundle:
+        raise ValueError("random initializations are incompatible with --load-bundle")
     if args.thin < 1:
         raise ValueError("--thin must be >= 1")
     if not loading_bundle and args.center_mass <= 0.0:
@@ -264,6 +287,9 @@ def main() -> None:
             "mode_displacements": list(mode_displacements),
             "mode_velocities": list(mode_velocities),
             "modal_kick_energy": args.modal_kick_energy,
+            "random_displacement": args.random_displacement,
+            "random_kick_energy": args.random_kick_energy,
+            "random_seed": args.random_seed,
         }
         if args.use_cache:
             cache_dir, cache_key = compute_bundle_dir(
@@ -285,6 +311,9 @@ def main() -> None:
                     save_stride=args.thin,
                     center_mass=args.center_mass,
                     modal_kick_energy=args.modal_kick_energy,
+                    random_displacement=args.random_displacement,
+                    random_kick_energy=args.random_kick_energy,
+                    random_seed=args.random_seed,
                 )
                 save_simulation_bundle(cache_dir, result, run_parameters)
                 print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
@@ -302,6 +331,9 @@ def main() -> None:
                 save_stride=args.thin,
                 center_mass=args.center_mass,
                 modal_kick_energy=args.modal_kick_energy,
+                random_displacement=args.random_displacement,
+                random_kick_energy=args.random_kick_energy,
+                random_seed=args.random_seed,
             )
             if args.save_bundle is not None:
                 save_simulation_bundle(Path(args.save_bundle), result, run_parameters)

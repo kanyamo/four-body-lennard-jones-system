@@ -589,6 +589,9 @@ def simulate_trajectory(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    random_displacement: float = 0.0,
+    random_kick_energy: float = 0.0,
+    random_seed: int | None = None,
     modal_kick_energy: float = 0.0,
 ) -> SimulationResult:
     if save_stride < 1:
@@ -636,6 +639,22 @@ def simulate_trajectory(
         mode_eigs.append(lam)
         combined_disp += disp * vec
         combined_vel += vel * vec
+
+    rng = np.random.default_rng(random_seed)
+    if random_displacement > 0.0:
+        rand_dir = rng.normal(size=equilibrium.shape)
+        norm = float(np.linalg.norm(rand_dir))
+        if norm > 0.0:
+            rand_dir = rand_dir / norm
+            combined_disp += random_displacement * rand_dir
+
+    if random_kick_energy > 0.0:
+        mass_diag = _mass_repetition(masses)
+        rand_flat = rng.normal(size=equilibrium.size)
+        norm_sq = _mass_inner(rand_flat, rand_flat, mass_diag)
+        if norm_sq > 0.0:
+            amp = math.sqrt(2.0 * random_kick_energy / norm_sq)
+            combined_vel += amp * rand_flat.reshape(equilibrium.shape)
 
     if modal_kick_energy > 0.0:
 

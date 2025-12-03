@@ -195,6 +195,9 @@ def main() -> None:
             save_stride=args.thin,
             center_mass=args.center_mass,
             modal_kick_energy=args.modal_kick_energy,
+            random_displacement=0.0,
+            random_kick_energy=0.0,
+            random_seed=None,
         )
         times = np.asarray(result.times)
         kinetic, potential, _ = compute_energy_series(result)

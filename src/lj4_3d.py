@@ -275,6 +275,24 @@ def parse_args() -> argparse.Namespace:
         help="deterministic kinetic energy injected along the leading unstable mode (0 to disable)",
     )
     ap.add_argument(
+        "--random-displacement",
+        type=float,
+        default=0.0,
+        help="ランダム方向の初期変位の大きさ（0で無効）",
+    )
+    ap.add_argument(
+        "--random-kick-energy",
+        type=float,
+        default=0.0,
+        help="ランダム方向の初期運動エネルギー（0で無効）",
+    )
+    ap.add_argument(
+        "--random-seed",
+        type=int,
+        default=None,
+        help="ランダム初期化のシード（未指定ならRNGデフォルト）",
+    )
+    ap.add_argument(
         "--save-bundle",
         type=Path,
         default=None,
@@ -358,7 +376,10 @@ def _build_run_parameters(
     mode_displacements: Seq[float],
     mode_velocities: Seq[float],
     modal_kick_energy: float,
-) -> dict[str, float | int | list[int] | list[float]]:
+    random_displacement: float,
+    random_kick_energy: float,
+    random_seed: int | None,
+) -> dict[str, float | int | list[int] | list[float] | None]:
     return {
         "dt": dt,
         "total_time": total_time,
@@ -368,6 +389,9 @@ def _build_run_parameters(
         "mode_displacements": list(mode_displacements),
         "mode_velocities": list(mode_velocities),
         "modal_kick_energy": modal_kick_energy,
+        "random_displacement": random_displacement,
+        "random_kick_energy": random_kick_energy,
+        "random_seed": random_seed,
     }
 
 
@@ -381,6 +405,9 @@ def integrate(
     center_mass: float,
     mode_indices: Seq[int] | None = None,
     modal_kick_energy: float = 0.01,
+    random_displacement: float = 0.0,
+    random_kick_energy: float = 0.0,
+    random_seed: int | None = None,
 ) -> SimulationResult:
     disp_list = _ensure_float_list(mode_displacement)
     vel_list = _ensure_float_list(mode_velocity)
@@ -394,6 +421,9 @@ def integrate(
         save_stride=save_stride,
         center_mass=center_mass,
         modal_kick_energy=modal_kick_energy,
+        random_displacement=random_displacement,
+        random_kick_energy=random_kick_energy,
+        random_seed=random_seed,
     )
 
 
@@ -409,6 +439,9 @@ def simulate(
     mode_displacements: Seq[float] | None = None,
     mode_velocities: Seq[float] | None = None,
     modal_kick_energy: float = 0.01,
+    random_displacement: float = 0.0,
+    random_kick_energy: float = 0.0,
+    random_seed: int | None = None,
 ):
     result = integrate(
         config,
@@ -420,6 +453,9 @@ def simulate(
         center_mass,
         mode_indices=mode_indices,
         modal_kick_energy=modal_kick_energy,
+        random_displacement=random_displacement,
+        random_kick_energy=random_kick_energy,
+        random_seed=random_seed,
     )
     kinetic, potential, total = compute_energy_series(result)
     return (
@@ -440,6 +476,13 @@ def simulate(
 def main() -> None:
     args = parse_args()
     loading_bundle = args.load_bundle is not None
+    random_used = args.random_displacement > 0.0 or args.random_kick_energy > 0.0
+    if random_used and args.use_cache:
+        raise ValueError(
+            "--no-cache を指定してください（ランダム初期化を使うときはキャッシュ不可）"
+        )
+    if random_used and loading_bundle:
+        raise ValueError("--load-bundle とランダム初期化は同時に使えません")
     if not loading_bundle:
         if args.center_mass <= 0.0:
             raise ValueError("--center-mass must be positive")
@@ -494,6 +537,9 @@ def main() -> None:
             mode_displacements,
             mode_velocities,
             args.modal_kick_energy,
+            args.random_displacement,
+            args.random_kick_energy,
+            args.random_seed,
         )
         if args.use_cache:
             cache_dir, cache_key = compute_bundle_dir(
@@ -515,6 +561,9 @@ def main() -> None:
                     args.center_mass,
                     mode_indices=mode_indices,
                     modal_kick_energy=args.modal_kick_energy,
+                    random_displacement=args.random_displacement,
+                    random_kick_energy=args.random_kick_energy,
+                    random_seed=args.random_seed,
                 )
                 save_simulation_bundle(cache_dir, result, run_parameters)
                 print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
@@ -532,6 +581,9 @@ def main() -> None:
                 args.center_mass,
                 mode_indices=mode_indices,
                 modal_kick_energy=args.modal_kick_energy,
+                random_displacement=args.random_displacement,
+                random_kick_energy=args.random_kick_energy,
+                random_seed=args.random_seed,
             )
             if args.save_bundle is not None:
                 save_simulation_bundle(args.save_bundle, result, run_parameters)
