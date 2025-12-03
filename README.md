@@ -9,6 +9,19 @@ Two CLI-ready scripts for the Lennard–Jones (6,12) stabilization experiments w
 
 Both use reduced LJ units (`m = σ = ε = 1`).
 
+## 4-body workflow (reusable bundles)
+
+シミュレーション結果を再利用できるよう、4体問題では「バンドル」形式で保存できます。
+
+- 計算して保存  
+  `uv run src/lj4_3d.py --config triangle_center --modes 0 --mode-displacement 0.02 --mode-velocity 0.00 --dt 0.002 --T 80 --thin 10 --save-bundle results/runs/demo1`
+- 保存済みバンドルからプロットだけ生成（再計算なし）  
+  `uv run src/lj4_3d.py --load-bundle results/runs/demo1 --plot-energies results/runs/demo1/energies.png --plot-modal results/runs/demo1/modal.png --plot-dihedral results/runs/demo1/dihedral.png`
+- 保存済みバンドルをアニメーション再生  
+  `uv run src/lj4_3d_anim.py --load-bundle results/runs/demo1`
+
+`results/runs/demo1/metadata.json` にメタデータ、`series.npz` に時系列配列がまとまって保存されるため、後から任意のプロットを追加生成できます。
+
 ## Quick start
 
 ```bash

@@ -7,10 +7,13 @@ from __future__ import annotations
 import argparse
 import math
 from collections.abc import Sequence as Seq
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
+
+from lj4_storage import load_simulation_bundle, save_simulation_bundle
 
 from lj4_core import available_configs, simulate_trajectory
 
@@ -65,6 +68,24 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="optional particle index to trace (defaults to config-specific choice)",
     )
+    ap.add_argument(
+        "--modal-kick-energy",
+        type=float,
+        default=0.0,
+        help="add velocity along the first available modal direction with this kinetic energy",
+    )
+    ap.add_argument(
+        "--save-bundle",
+        type=str,
+        default=None,
+        help="保存用バンドルのディレクトリ (metadata.json + series.npz)",
+    )
+    ap.add_argument(
+        "--load-bundle",
+        type=str,
+        default=None,
+        help="既存バンドルを読み込んで再計算せずにアニメーション表示する",
+    )
     return ap.parse_args()
 
 
@@ -118,7 +139,9 @@ def update_plot(ax, result, trace_index):
 
     def on_slider_change(val: float) -> None:
         new_frame = int(np.searchsorted(result.times, val, side="left"))
-        if new_frame >= len(result.times) or not math.isclose(result.times[new_frame], val):
+        if new_frame >= len(result.times) or not math.isclose(
+            result.times[new_frame], val
+        ):
             new_frame = max(0, min(len(result.times) - 1, new_frame - 1))
         if new_frame != current_frame[0]:
             current_frame[0] = new_frame
@@ -152,6 +175,7 @@ def simulate(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    modal_kick_energy: float,
     mode_indices: Seq[int] | None = None,
 ):
     disp = _ensure_float_list(mode_displacement)
@@ -165,15 +189,17 @@ def simulate(
         total_time=total_time,
         save_stride=save_stride,
         center_mass=center_mass,
+        modal_kick_energy=modal_kick_energy,
     )
     return result.spec, result.mode_eigenvalues, result.times, result.positions
 
 
 def main() -> None:
     args = parse_args()
+    loading_bundle = args.load_bundle is not None
     if args.thin < 1:
         raise ValueError("--thin must be >= 1")
-    if args.center_mass <= 0.0:
+    if not loading_bundle and args.center_mass <= 0.0:
         raise ValueError("--center_mass must be positive")
 
     def parse_float_list(raw: str, name: str) -> list[float]:
@@ -188,22 +214,49 @@ def main() -> None:
             raise ValueError(f"{name} must contain at least one value")
         return [int(item) for item in parts]
 
-    mode_indices = tuple(parse_int_list(args.modes, "--modes"))
-    mode_displacements = parse_float_list(args.mode_displacement, "--mode-displacement")
-    mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
+    if loading_bundle:
+        loaded = load_simulation_bundle(args.load_bundle)
+        result = loaded.result
+        run_parameters = loaded.metadata.get("run_parameters", {})
+        mode_indices = tuple(result.mode_indices)
+        mode_displacements = list(result.displacement_coeffs)
+        mode_velocities = list(result.velocity_coeffs)
+        print(f"バンドルを読み込みました: {args.load_bundle}")
+    else:
+        mode_indices = tuple(parse_int_list(args.modes, "--modes"))
+        mode_displacements = parse_float_list(
+            args.mode_displacement, "--mode-displacement"
+        )
+        mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
+        result = simulate_trajectory(
+            config=args.config,
+            mode_indices=mode_indices,
+            mode_displacements=mode_displacements,
+            mode_velocities=mode_velocities,
+            dt=args.dt,
+            total_time=args.T,
+            save_stride=args.thin,
+            center_mass=args.center_mass,
+            record_energies=args.save_bundle is not None,
+            modal_kick_energy=args.modal_kick_energy,
+        )
+        run_parameters = {
+            "dt": args.dt,
+            "total_time": args.T,
+            "save_stride": args.thin,
+            "center_mass": args.center_mass,
+            "mode_indices": list(mode_indices),
+            "mode_displacements": list(mode_displacements),
+            "mode_velocities": list(mode_velocities),
+            "modal_kick_energy": args.modal_kick_energy,
+        }
+        if args.save_bundle is not None:
+            save_simulation_bundle(Path(args.save_bundle), result, run_parameters)
+            print(f"バンドルを書き出しました: {args.save_bundle}")
 
-    result = simulate_trajectory(
-        args.config,
-        mode_indices,
-        mode_displacements,
-        mode_velocities,
-        args.dt,
-        args.T,
-        args.thin,
-        args.center_mass,
+    trace_index = (
+        args.trace_index if args.trace_index is not None else result.spec.trace_index
     )
-
-    trace_index = args.trace_index if args.trace_index is not None else result.spec.trace_index
     if trace_index < 0 or trace_index >= result.positions.shape[1]:
         raise ValueError("trace index out of bounds for this configuration")
 
@@ -218,10 +271,10 @@ def main() -> None:
         )
     )
     print(f"Modes: {mode_info}")
-    print(
-        f"Displacement coeffs: {', '.join(f'{v:.4f}' for v in mode_displacements)}"
-    )
+    print(f"Displacement coeffs: {', '.join(f'{v:.4f}' for v in mode_displacements)}")
     print(f"Velocity coeffs: {', '.join(f'{v:.4f}' for v in mode_velocities)}")
+    if args.modal_kick_energy > 0.0:
+        print(f"Modal kick energy: {args.modal_kick_energy:.4f}")
 
     fig = plt.figure(figsize=(6.5, 6.8))
     ax = fig.add_subplot(111, projection="3d")

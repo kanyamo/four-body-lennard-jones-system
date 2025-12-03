@@ -11,9 +11,12 @@ from pathlib import Path
 
 import numpy as np
 
+from lj4_storage import load_simulation_bundle, save_simulation_bundle
+
 from lj4_core import (
     SimulationResult,
     available_configs,
+    plot_dihedral_series,
     simulate_trajectory,
 )
 
@@ -63,6 +66,9 @@ def save_summary_json(
             "vectors": result.modal_basis.vectors.tolist(),
         },
         "modal_coordinates": result.modal_coordinates.tolist(),
+        "dihedral_edges": [list(edge) for edge in result.dihedral_edges],
+        "dihedral_angles": result.dihedral_angles.tolist(),
+        "dihedral_planarity_gap": result.dihedral_planarity_gap.tolist(),
         "energies": {
             "kinetic": result.kinetic.tolist(),
             "potential": result.potential.tolist(),
@@ -198,10 +204,34 @@ def parse_args() -> argparse.Namespace:
         help="comma-separated modal classes to plot (default: same as --modal-report)",
     )
     ap.add_argument(
+        "--plot-dihedral",
+        type=Path,
+        default=None,
+        help="optional PNG path plotting dihedral evolution over time",
+    )
+    ap.add_argument(
+        "--dihedral-quantity",
+        choices=("gap", "angle"),
+        default="gap",
+        help="plot 180°-angle gap (gap) or the raw dihedral angle (angle)",
+    )
+    ap.add_argument(
         "--modal-kick-energy",
         type=float,
         default=0.01,
         help="deterministic kinetic energy injected along the leading unstable mode (0 to disable)",
+    )
+    ap.add_argument(
+        "--save-bundle",
+        type=Path,
+        default=None,
+        help="保存用バンドルのディレクトリ (metadata.json + series.npz)",
+    )
+    ap.add_argument(
+        "--load-bundle",
+        type=Path,
+        default=None,
+        help="既存バンドルを読み込んで再計算せずに出力を生成する",
     )
     return ap.parse_args()
 
@@ -246,6 +276,28 @@ def _collect_modal_indices(
                 mapping[category].append(idx)
                 break
     return mapping
+
+
+def _build_run_parameters(
+    dt: float,
+    total_time: float,
+    save_stride: int,
+    center_mass: float,
+    mode_indices: Seq[int],
+    mode_displacements: Seq[float],
+    mode_velocities: Seq[float],
+    modal_kick_energy: float,
+) -> dict[str, float | int | list[int] | list[float]]:
+    return {
+        "dt": dt,
+        "total_time": total_time,
+        "save_stride": save_stride,
+        "center_mass": center_mass,
+        "mode_indices": list(mode_indices),
+        "mode_displacements": list(mode_displacements),
+        "mode_velocities": list(mode_velocities),
+        "modal_kick_energy": modal_kick_energy,
+    }
 
 
 def integrate(
@@ -316,8 +368,10 @@ def simulate(
 
 def main() -> None:
     args = parse_args()
-    if args.center_mass <= 0.0:
-        raise ValueError("--center-mass must be positive")
+    loading_bundle = args.load_bundle is not None
+    if not loading_bundle:
+        if args.center_mass <= 0.0:
+            raise ValueError("--center-mass must be positive")
 
     def parse_float_list(raw: str, name: str) -> list[float]:
         parts = [item.strip() for item in str(raw).split(",") if item.strip()]
@@ -331,9 +385,6 @@ def main() -> None:
             raise ValueError(f"{name} must contain at least one value")
         return [int(item) for item in parts]
 
-    mode_indices = tuple(parse_int_list(args.modes, "--modes"))
-    mode_displacements = parse_float_list(args.mode_displacement, "--mode-displacement")
-    mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
     modal_report_categories = _parse_modal_categories(
         args.modal_report, "--modal-report"
     )
@@ -344,17 +395,46 @@ def main() -> None:
             args.plot_modal_categories, "--plot-modal-categories"
         )
 
-    result = integrate(
-        args.config,
-        mode_displacements,
-        mode_velocities,
-        args.dt,
-        args.T,
-        args.thin,
-        args.center_mass,
-        mode_indices=mode_indices,
-        modal_kick_energy=args.modal_kick_energy,
-    )
+    if loading_bundle:
+        loaded = load_simulation_bundle(args.load_bundle)
+        result = loaded.result
+        run_parameters = loaded.metadata.get("run_parameters", {})
+        print(f"バンドルを読み込みました: {args.load_bundle}")
+        if not run_parameters:
+            print("注意: run_parameters が見つからなかったため、CLI引数を参考表示に使います。")
+        mode_indices = tuple(result.mode_indices)
+        mode_displacements = list(result.displacement_coeffs)
+        mode_velocities = list(result.velocity_coeffs)
+    else:
+        mode_indices = tuple(parse_int_list(args.modes, "--modes"))
+        mode_displacements = parse_float_list(
+            args.mode_displacement, "--mode-displacement"
+        )
+        mode_velocities = parse_float_list(args.mode_velocity, "--mode-velocity")
+        result = integrate(
+            args.config,
+            mode_displacements,
+            mode_velocities,
+            args.dt,
+            args.T,
+            args.thin,
+            args.center_mass,
+            mode_indices=mode_indices,
+            modal_kick_energy=args.modal_kick_energy,
+        )
+        run_parameters = _build_run_parameters(
+            args.dt,
+            args.T,
+            args.thin,
+            args.center_mass,
+            mode_indices,
+            mode_displacements,
+            mode_velocities,
+            args.modal_kick_energy,
+        )
+        if args.save_bundle is not None:
+            save_simulation_bundle(args.save_bundle, result, run_parameters)
+            print(f"バンドルを書き出しました: {args.save_bundle}")
 
     print(f"Configuration: {result.spec.label}")
     mode_info = ", ".join(
@@ -369,7 +449,11 @@ def main() -> None:
     print(f"Modes: {mode_info}")
     print(f"Displacement coeffs: {', '.join(f'{v:.4f}' for v in mode_displacements)}")
     print(f"Velocity coeffs: {', '.join(f'{v:.4f}' for v in mode_velocities)}")
-    print(f"Saved frames: {len(result.times)} (every {args.thin} steps)")
+    run_dt = float(run_parameters.get("dt", args.dt))
+    run_T = float(run_parameters.get("total_time", args.T))
+    run_stride = int(run_parameters.get("save_stride", args.thin))
+    print(f"Integrator dt: {run_dt:.5f}, total_time: {run_T}")
+    print(f"Saved frames: {len(result.times)} (every {run_stride} steps)")
     print(f"Time span: {result.times[0]:.3f} → {result.times[-1]:.3f}")
     if (
         result.kinetic is not None
@@ -414,9 +498,9 @@ def main() -> None:
         save_summary_json(
             args.save_summary,
             result,
-            args.dt,
-            args.T,
-            args.thin,
+            run_dt,
+            run_T,
+            run_stride,
         )
         print(f"Summary saved to {args.save_summary}")
 
@@ -458,6 +542,18 @@ def main() -> None:
                 "No modal indices matched the requested plot categories; "
                 "plot was not produced."
             )
+    if args.plot_dihedral is not None:
+        plot_dihedral_series(
+            args.plot_dihedral,
+            result.times,
+            result.dihedral_angles,
+            edges=result.dihedral_edges,
+            quantity=args.dihedral_quantity,
+        )
+        print(
+            f"Dihedral plot saved to {args.plot_dihedral} "
+            f"(quantity: {args.dihedral_quantity})"
+        )
 
 
 if __name__ == "__main__":

@@ -47,6 +47,9 @@ class SimulationResult:
     mode_shapes: tuple[np.ndarray, ...]
     modal_basis: "ModalBasis"
     modal_coordinates: np.ndarray
+    dihedral_edges: tuple[tuple[int, int], ...]
+    dihedral_angles: np.ndarray
+    dihedral_planarity_gap: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -194,6 +197,94 @@ def available_configs() -> tuple[str, ...]:
     return tuple(sorted(EQUILIBRIA.keys()))
 
 
+DIHEDRAL_EDGES: tuple[tuple[int, int], ...] = tuple(combinations(range(4), 2))
+_DIHEDRAL_COMPLEMENTS: dict[tuple[int, int], tuple[int, int]] = {
+    edge: tuple(sorted(set(range(4)) - set(edge))) for edge in DIHEDRAL_EDGES
+}
+
+
+def dihedral_angle_for_edge(
+    positions: np.ndarray, edge: tuple[int, int], eps: float = 1e-12
+) -> float:
+    """Compute the dihedral angle (radians) around the given edge.
+
+    The angle is defined between the planes formed by the two triangles that share
+    the edge. A perfectly planar configuration yields an angle close to pi.
+    """
+
+    i, j = edge
+    if positions.shape[0] <= max(i, j):
+        raise ValueError("Edge index out of range for provided positions.")
+    k, l = _DIHEDRAL_COMPLEMENTS[edge]
+    pi, pj, pk, pl = positions[i], positions[j], positions[k], positions[l]
+
+    edge_vec = pj - pi
+    n1 = np.cross(edge_vec, pk - pi)
+    n2 = np.cross(edge_vec, pl - pi)
+    n1_norm = float(np.linalg.norm(n1))
+    n2_norm = float(np.linalg.norm(n2))
+    if n1_norm < eps or n2_norm < eps:
+        return math.nan
+    cos_theta = float(np.dot(n1, n2) / (n1_norm * n2_norm))
+    cos_theta = min(1.0, max(-1.0, cos_theta))
+    raw_angle = math.acos(cos_theta)
+    # Planar configurations should map to pi regardless of normal orientation.
+    return math.pi - min(raw_angle, math.pi - raw_angle)
+
+
+def dihedral_angles(positions: np.ndarray) -> np.ndarray:
+    """Return dihedral angles (radians) for all 6 edges."""
+
+    angles = np.empty(len(DIHEDRAL_EDGES), dtype=float)
+    for idx, edge in enumerate(DIHEDRAL_EDGES):
+        angles[idx] = dihedral_angle_for_edge(positions, edge)
+    return angles
+
+
+def plot_dihedral_series(
+    path,
+    times: np.ndarray,
+    dihedral_angles: np.ndarray,
+    edges: Sequence[tuple[int, int]] | None = None,
+    quantity: str = "gap",
+) -> None:
+    """Plot dihedral evolution over time.
+
+    quantity: "gap" plots (180° - angle) to highlight脱平面量, "angle" plots the
+    absolute dihedral angle in degrees.
+    """
+
+    import matplotlib.pyplot as plt
+
+    edges = tuple(edges) if edges is not None else DIHEDRAL_EDGES
+    if dihedral_angles.shape[1] != len(edges):
+        raise ValueError("Mismatch between dihedral data and edge list.")
+
+    if quantity not in {"gap", "angle"}:
+        raise ValueError("quantity must be 'gap' or 'angle'")
+
+    plt.figure(figsize=(6, 3.5))
+    if quantity == "gap":
+        values = np.degrees(np.pi - dihedral_angles)
+        ylabel = "dihedral gap (deg from 180)"
+        title = "Planarity gap vs time"
+    else:
+        values = np.degrees(dihedral_angles)
+        ylabel = "dihedral angle (deg)"
+        title = "Dihedral angles vs time"
+
+    for idx, edge in enumerate(edges):
+        plt.plot(times, values[:, idx], label=f"{edge[0]}-{edge[1]}")
+    plt.xlabel("time")
+    plt.ylabel(ylabel)
+    plt.yscale("log")
+    plt.title(title)
+    plt.legend(loc="best", fontsize="small")
+    plt.tight_layout()
+    plt.savefig(path, dpi=160)
+    plt.close()
+
+
 def lj_force_pair_3d(r_vec: np.ndarray) -> np.ndarray:
     r2 = float(r_vec @ r_vec)
     if r2 < 1e-16:
@@ -295,7 +386,9 @@ def _mass_inner(vec_a: np.ndarray, vec_b: np.ndarray, mass_diag: np.ndarray) -> 
     return float(np.dot(vec_a * mass_diag, vec_b))
 
 
-def _normalize_mass(vec: np.ndarray, mass_diag: np.ndarray, tol: float) -> np.ndarray | None:
+def _normalize_mass(
+    vec: np.ndarray, mass_diag: np.ndarray, tol: float
+) -> np.ndarray | None:
     norm_sq = _mass_inner(vec, vec, mass_diag)
     if norm_sq <= tol:
         return None
@@ -534,6 +627,7 @@ def simulate_trajectory(
         combined_vel += vel * vec
 
     if modal_kick_energy > 0.0:
+
         def select_modal_index(target: str) -> int | None:
             for idx, cls in enumerate(modal_basis.classifications):
                 if cls == target:
@@ -610,11 +704,17 @@ def simulate_trajectory(
 
     total_dim = equilibrium_flat.size
     modal_coordinates = np.zeros((len(snaps), total_dim))
+    n_edges = len(DIHEDRAL_EDGES)
+    dihedral_angles_series = np.zeros((len(snaps), n_edges))
+    dihedral_planarity_gap = np.zeros_like(dihedral_angles_series)
     basis_T = modal_basis.vectors.T
     for idx, snapshot in enumerate(snaps):
         delta_flat = snapshot.reshape(-1) - equilibrium_flat
         projected = basis_T @ (mass_diag * delta_flat)
         modal_coordinates[idx] = projected
+        angles = dihedral_angles(snapshot)
+        dihedral_angles_series[idx] = angles
+        dihedral_planarity_gap[idx] = math.pi - angles
 
     return SimulationResult(
         spec=spec,
@@ -636,6 +736,9 @@ def simulate_trajectory(
         mode_shapes=tuple(mode_vectors),
         modal_basis=modal_basis,
         modal_coordinates=modal_coordinates,
+        dihedral_edges=DIHEDRAL_EDGES,
+        dihedral_angles=dihedral_angles_series,
+        dihedral_planarity_gap=dihedral_planarity_gap,
     )
 
 
@@ -644,7 +747,11 @@ __all__ = [
     "SimulationResult",
     "ModalBasis",
     "EQUILIBRIA",
+    "DIHEDRAL_EDGES",
     "available_configs",
+    "dihedral_angle_for_edge",
+    "dihedral_angles",
+    "plot_dihedral_series",
     "lj_force_pair_3d",
     "lj_total_forces_3d",
     "lj_total_potential",
