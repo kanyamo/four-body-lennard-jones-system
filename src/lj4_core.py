@@ -518,6 +518,23 @@ def recenter(points: np.ndarray, masses: np.ndarray) -> np.ndarray:
     return points - com
 
 
+def _rigid_align(
+    points: np.ndarray, reference: np.ndarray, masses: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Kabsch alignment: remove translation and best-fit rotation."""
+
+    centered_p = recenter(points, masses)
+    centered_ref = recenter(reference, masses)
+    H = centered_p.T @ centered_ref
+    U, _, Vt = np.linalg.svd(H)
+    R = Vt.T @ U.T
+    if np.linalg.det(R) < 0:
+        Vt[-1, :] *= -1
+        R = Vt.T @ U.T
+    aligned = centered_p @ R
+    return aligned, R
+
+
 def stable_modes(
     positions: np.ndarray, masses: np.ndarray, tol: float = 1e-8
 ) -> list[tuple[np.ndarray, float]]:
@@ -697,7 +714,9 @@ def compute_energy_series(result: SimulationResult) -> tuple[np.ndarray, np.ndar
 
 
 def compute_modal_projections(
-    result: SimulationResult, modal_basis: ModalBasis | None = None
+    result: SimulationResult,
+    modal_basis: ModalBasis | None = None,
+    align: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, ModalBasis]:
     basis = modal_basis or compute_modal_basis(result.spec.positions, result.masses)
     mass_diag = _mass_repetition(result.masses)
@@ -707,17 +726,27 @@ def compute_modal_projections(
     coords = np.zeros((len(result.times), eq_flat.size))
     velocities = np.zeros_like(coords)
     for idx, (pos, vel) in enumerate(zip(result.positions, result.velocities)):
-        delta = pos.reshape(-1) - eq_flat
-        v_flat = vel.reshape(-1)
+        if align:
+            aligned_pos, R = _rigid_align(pos, result.spec.positions, result.masses)
+            aligned_vel = vel @ R
+        else:
+            aligned_pos = recenter(pos, result.masses)
+            aligned_vel = vel
+        delta = aligned_pos.reshape(-1) - eq_flat
+        v_flat = aligned_vel.reshape(-1)
         coords[idx] = basis_T @ (mass_diag * delta)
         velocities[idx] = basis_T @ (mass_diag * v_flat)
     return coords, velocities, basis
 
 
 def compute_modal_energies(
-    result: SimulationResult, modal_basis: ModalBasis | None = None
+    result: SimulationResult,
+    modal_basis: ModalBasis | None = None,
+    align: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, ModalBasis]:
-    coords, velocities, basis = compute_modal_projections(result, modal_basis)
+    coords, velocities, basis = compute_modal_projections(
+        result, modal_basis=modal_basis, align=align
+    )
     # modal kinetic = 0.5 * v^2 (mass-normalized basisなので質量は1扱い)
     kinetic = 0.5 * velocities**2
     # modal potential = 0.5 * lambda * q^2 （固有値はω^2）

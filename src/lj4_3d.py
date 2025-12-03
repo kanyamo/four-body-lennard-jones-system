@@ -52,6 +52,9 @@ def save_summary_json(
     modal_coords, modal_vels, modal_basis = compute_modal_projections(result)
     dihedral_angles, dihedral_gap = compute_dihedral_series(result)
     kinetic, potential, total = compute_energy_series(result)
+    modal_ke, modal_pe, modal_te, _ = compute_modal_energies(
+        result, modal_basis=modal_basis
+    )
 
     summary = {
         "config": result.spec.key,
@@ -82,6 +85,11 @@ def save_summary_json(
         },
         "modal_coordinates": modal_coords.tolist(),
         "modal_velocities": modal_vels.tolist(),
+        "modal_energy": {
+            "kinetic": modal_ke.tolist(),
+            "potential": modal_pe.tolist(),
+            "total": modal_te.tolist(),
+        },
         "dihedral_edges": [list(edge) for edge in result.dihedral_edges],
         "dihedral_angles": dihedral_angles.tolist(),
         "dihedral_planarity_gap": dihedral_gap.tolist(),
@@ -628,6 +636,10 @@ def main() -> None:
     if args.plot_modal is not None and modal_plot_categories:
         modal_coords, modal_vels, modal_basis = get_modal_data()
         modal_ke, modal_pe, modal_te, _ = get_modal_energy_data()
+        modal_energy_monotone = (
+            0.5 * modal_vels**2
+            + 0.5 * (np.abs(modal_basis.eigenvalues)[None, :]) * (modal_coords**2)
+        )
         modal_groups = _collect_modal_indices(
             modal_basis.classifications, modal_plot_categories
         )
@@ -640,7 +652,7 @@ def main() -> None:
                 result.times,
                 modal_coords,
                 modal_vels,
-                modal_te,
+                modal_energy_monotone,
                 plot_indices,
                 modal_basis.labels,
                 params_text=(

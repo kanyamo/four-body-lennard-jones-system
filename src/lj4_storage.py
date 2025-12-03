@@ -81,7 +81,9 @@ def bundle_from_result(
         "velocities": result.velocities,
         "initial_displacement": result.initial_displacement,
         "initial_velocity": result.initial_velocity,
-        "mode_shapes": _stack_mode_shapes(result.mode_shapes, result.positions.shape[1]),
+        "mode_shapes": _stack_mode_shapes(
+            result.mode_shapes, result.positions.shape[1]
+        ),
     }
     return meta, arrays
 
