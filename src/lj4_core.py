@@ -262,12 +262,12 @@ def plot_dihedral_series(
 
     plt.figure(figsize=(6, 3.5))
     if quantity == "gap":
-        values = np.degrees(np.pi - dihedral_angles)
-        ylabel = "dihedral gap (deg from 180)"
+        values = np.pi - dihedral_angles
+        ylabel = "dihedral gap (rad from pi)"
         title = "Planarity gap vs time"
     else:
-        values = np.degrees(dihedral_angles)
-        ylabel = "dihedral angle (deg)"
+        values = dihedral_angles
+        ylabel = "dihedral angle (rad)"
         title = "Dihedral angles vs time"
 
     for idx, edge in enumerate(edges):
@@ -725,7 +725,9 @@ def simulate_trajectory(
     )
 
 
-def compute_energy_series(result: SimulationResult) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def compute_energy_series(
+    result: SimulationResult,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     kinetic = np.array([kinetic_energy(v, result.masses) for v in result.velocities])
     potential = np.array([lj_total_potential(x) for x in result.positions])
     total = kinetic + potential

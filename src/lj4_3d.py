@@ -518,7 +518,9 @@ def main() -> None:
         run_parameters = loaded.metadata.get("run_parameters", {})
         print(f"バンドルを読み込みました: {args.load_bundle}")
         if not run_parameters:
-            print("注意: run_parameters が見つからなかったため、CLI引数を参考表示に使います。")
+            print(
+                "注意: run_parameters が見つからなかったため、CLI引数を参考表示に使います。"
+            )
         mode_indices = tuple(result.mode_indices)
         mode_displacements = list(result.displacement_coeffs)
         mode_velocities = list(result.velocity_coeffs)
@@ -688,10 +690,9 @@ def main() -> None:
     if args.plot_modal is not None and modal_plot_categories:
         modal_coords, modal_vels, modal_basis = get_modal_data()
         modal_ke, modal_pe, modal_te, _ = get_modal_energy_data()
-        modal_energy_monotone = (
-            0.5 * modal_vels**2
-            + 0.5 * (np.abs(modal_basis.eigenvalues)[None, :]) * (modal_coords**2)
-        )
+        modal_energy_monotone = 0.5 * modal_vels**2 + 0.5 * (
+            np.abs(modal_basis.eigenvalues)[None, :]
+        ) * (modal_coords**2)
         modal_groups = _collect_modal_indices(
             modal_basis.classifications, modal_plot_categories
         )
