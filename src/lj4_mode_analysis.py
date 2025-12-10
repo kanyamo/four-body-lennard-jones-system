@@ -30,6 +30,7 @@ from typing import Iterable
 import numpy as np
 
 from lj4_core import build_hessian, lj_force_derivative, triangle_equilibrium_radius
+from rhombus_helpers import solve_rhombus_angle_and_side
 
 
 def triangle_vertices(radius: float) -> np.ndarray:
@@ -232,6 +233,16 @@ def select_indices(modes: Iterable[Mode], target: str) -> list[int]:
 # --- Rhombus helpers -----------------------------------------------------
 
 
+def _rhombus_angle_and_side(
+    repulsive_exp: int, attractive_exp: int
+) -> tuple[float, float]:
+    """Back-compat shim to reuse shared rhombus solver."""
+
+    return solve_rhombus_angle_and_side(
+        repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
+
+
 def rhombus_equilibrium_angles(tol: float = 1e-10) -> list[float]:
     """Return all interior angles θ in (0, π) satisfying the rhombus equilibrium.
 
@@ -313,16 +324,26 @@ def rhombus_vertices(a: float, theta: float) -> np.ndarray:
     return verts
 
 
-def validate_rhombus(theta: float, a: float, tol: float = 1e-8) -> None:
-    """Ensure both rhombus force-balance conditions are satisfied."""
+def validate_rhombus(
+    theta: float,
+    a: float,
+    repulsive_exp: int,
+    attractive_exp: int,
+    tol: float = 1e-8,
+) -> None:
+    """Ensure both rhombus force-balance conditions are satisfied for given (p,q)."""
 
     c = float(np.cos(theta / 2.0))
     s = float(np.sin(theta / 2.0))
-    eq1 = 2.0 * c * lj_force_derivative(a, repulsive_exp=12, attractive_exp=6) + lj_force_derivative(
-        2.0 * a * c, repulsive_exp=12, attractive_exp=6
+    eq1 = 2.0 * c * lj_force_derivative(
+        a, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    ) + lj_force_derivative(
+        2.0 * a * c, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
     )
-    eq2 = 2.0 * s * lj_force_derivative(a, repulsive_exp=12, attractive_exp=6) + lj_force_derivative(
-        2.0 * a * s, repulsive_exp=12, attractive_exp=6
+    eq2 = 2.0 * s * lj_force_derivative(
+        a, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    ) + lj_force_derivative(
+        2.0 * a * s, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
     )
     if abs(eq1) > tol or abs(eq2) > tol:
         raise ValueError(
@@ -339,11 +360,6 @@ def format_angle(theta: float, digits: int = 10) -> str:
 def main() -> None:
     args = parse_args()
 
-    if args.config != "triangle_center" and (
-        args.repulsive_exp != 12 or args.attractive_exp != 6
-    ):
-        raise NotImplementedError("(p,q) exponents ≠ (12,6) are only supported for triangle_center")
-
     if args.config == "triangle_center":
         r_star = triangle_equilibrium_radius(args.repulsive_exp, args.attractive_exp)
         radius = args.side_scale * r_star
@@ -359,23 +375,23 @@ def main() -> None:
             "radius": radius,
             "equilibrium_radius": r_star,
         }
-    else:
-        available = rhombus_equilibrium_angles()
-        if args.config == "rhombus":
-            theta = min(available)
-            config_label = "planar rhombus (D2h)"
-        else:
-            target = np.pi / 2.0
-            theta = min(available, key=lambda ang: abs(ang - target))
-            config_label = "square (D4h)"
-
-        a_eq = rhombus_edge_length(theta)
-        validate_rhombus(theta, a_eq, tol=1e-8)
+    elif args.config == "rhombus":
+        theta, a_eq = _rhombus_angle_and_side(
+            repulsive_exp=args.repulsive_exp, attractive_exp=args.attractive_exp
+        )
+        config_label = "planar rhombus (D2h)"
         a = args.side_scale * a_eq
         positions = rhombus_vertices(a, theta)
         masses = np.full(4, args.outer_mass, dtype=float)
-        short_diag = 2.0 * a * np.cos(theta / 2.0)
-        long_diag = 2.0 * a * np.sin(theta / 2.0)
+        short_diag = 2.0 * a * np.sin(theta / 2.0)
+        long_diag = 2.0 * a * np.cos(theta / 2.0)
+        validate_rhombus(
+            theta,
+            a_eq,
+            repulsive_exp=args.repulsive_exp,
+            attractive_exp=args.attractive_exp,
+            tol=1e-8,
+        )
         info_lines = [
             f"θ = {np.degrees(theta):.9f}°",
             f"a_eq = {a_eq:.8f}",
@@ -390,6 +406,25 @@ def main() -> None:
             "short_diagonal": short_diag,
             "long_diagonal": long_diag,
         }
+    elif args.config == "square":
+        if args.repulsive_exp != 12 or args.attractive_exp != 6:
+            raise NotImplementedError(
+                "Non-(12,6) exponents not yet supported for square"
+            )
+        available = rhombus_equilibrium_angles()
+        target = np.pi / 2.0
+        theta = min(available, key=lambda ang: abs(ang - target))
+        config_label = "square (D4h)"
+        a_eq = rhombus_edge_length(theta)
+        validate_rhombus(
+            theta,
+            a_eq,
+            repulsive_exp=args.repulsive_exp,
+            attractive_exp=args.attractive_exp,
+            tol=1e-8,
+        )
+    else:
+        raise ValueError(f"Unknown configuration: {args.config}")
 
     H = build_hessian(
         positions, repulsive_exp=args.repulsive_exp, attractive_exp=args.attractive_exp

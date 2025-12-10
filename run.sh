@@ -1,15 +1,14 @@
 uv run src/lj4_3d.py \
-    --config triangle_center \
-    --mode-displacement 0.0 \
-    --mode-velocity 1.4 \
-    --T 50 \
+    --config rhombus \
+    --mode-displacement 0.15 \
+    --mode-velocity 0.0 \
+    --T 80 \
     --thin 10 \
     --modal-kick-energy 0.00001 \
     --modes 0 \
     --random-kick-energy 0.00000 \
-    --no-cache \
-    --repulsive-exp 12 \
-    --attractive-exp 6 \
+    --repulsive-exp 18 \
+    --attractive-exp 9 \
     --plot-modal results/modal_plot.png \
     --plot-modal-categories stable,unstable \
     --plot-energies results/energy_plot.png \

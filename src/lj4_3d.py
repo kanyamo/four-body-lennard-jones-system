@@ -514,12 +514,6 @@ def main() -> None:
             raise ValueError("--center-mass must be positive")
         if args.repulsive_exp <= args.attractive_exp or args.attractive_exp <= 0:
             raise ValueError("repulsive-exp must be > attractive-exp > 0")
-        if args.config != "triangle_center" and (
-            args.repulsive_exp != 12 or args.attractive_exp != 6
-        ):
-            raise ValueError(
-                "(p,q) 指数の指定は現在 triangle_center のみ対応しています"
-            )
     if args.use_cache and loading_bundle:
         print("注意: --load-bundle が指定されたため --use-cache は無視します。")
         args.use_cache = False

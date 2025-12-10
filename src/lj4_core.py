@@ -14,6 +14,8 @@ from typing import Sequence
 
 import numpy as np
 
+from rhombus_helpers import solve_rhombus_angle_and_side
+
 
 @dataclass(frozen=True)
 class EquilibriumSpec:
@@ -112,14 +114,18 @@ def _square_planar() -> np.ndarray:
     )
 
 
-def _rhombus_planar() -> np.ndarray:
-    # Rotated so each vertex lies on either the x- or y-axis for easier reasoning.
+def _rhombus_planar(repulsive_exp: int, attractive_exp: int) -> np.ndarray:
+    theta, a_eq = solve_rhombus_angle_and_side(
+        repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
+    short_diag = 2.0 * a_eq * math.sin(theta / 2.0)
+    long_diag = 2.0 * a_eq * math.cos(theta / 2.0)
     positions = np.array(
         [
-            (-0.5624000313, 0.0, 0.0),
-            (0.0, -0.9688258831, 0.0),
-            (0.0, 0.9688258831, 0.0),
-            (0.5624000313, 0.0, 0.0),
+            (-0.5 * short_diag, 0.0, 0.0),
+            (0.0, -0.5 * long_diag, 0.0),
+            (0.0, 0.5 * long_diag, 0.0),
+            (0.5 * short_diag, 0.0, 0.0),
         ],
         dtype=float,
     )
@@ -173,6 +179,13 @@ def _build_equilibrium(
     config: str, repulsive_exp: int, attractive_exp: int
 ) -> EquilibriumSpec:
     if config == "tetrahedron":
+        if (
+            repulsive_exp != DEFAULT_REPULSIVE_EXP
+            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
+        ):
+            raise NotImplementedError(
+                "(p,q) exponents other than (12,6) are not supported for tetrahedron"
+            )
         return EquilibriumSpec(
             key="tetrahedron",
             label="tetrahedron (T_d)",
@@ -181,17 +194,12 @@ def _build_equilibrium(
             trace_index=0,
         )
     if config == "rhombus":
-        if (
-            repulsive_exp != DEFAULT_REPULSIVE_EXP
-            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
-        ):
-            raise NotImplementedError(
-                "(p,q) exponents other than (12,6) are not supported for rhombus"
-            )
         return EquilibriumSpec(
             key="rhombus",
             label="rhombus (θ≈60.27°)",
-            positions=_rhombus_planar(),
+            positions=_rhombus_planar(
+                repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+            ),
             edges=((0, 1), (1, 2), (2, 3), (3, 0)),
             trace_index=0,
         )
