@@ -15,10 +15,9 @@ from matplotlib.widgets import Slider
 
 from lj4_storage import (
     CACHE_DEFAULT_DIRNAME,
-    bundle_exists,
-    compute_bundle_dir,
     load_simulation_bundle,
     save_simulation_bundle,
+    simulate_with_cache,
 )
 
 from lj4_core import available_configs, simulate_trajectory
@@ -264,12 +263,6 @@ def main() -> None:
         raise ValueError("--thin must be >= 1")
     if args.repulsive_exp <= args.attractive_exp or args.attractive_exp <= 0:
         raise ValueError("repulsive-exp must be > attractive-exp > 0")
-    if args.config != "triangle_center" and (
-        args.repulsive_exp != 12 or args.attractive_exp != 6
-    ):
-        raise ValueError(
-            "(p,q) exponents other than (12,6) are currently supported only for triangle_center"
-        )
     if not loading_bundle and args.center_mass <= 0.0:
         raise ValueError("--center_mass must be positive")
     if args.use_cache and loading_bundle:
@@ -317,57 +310,24 @@ def main() -> None:
             "random_kick_energy": args.random_kick_energy,
             "random_seed": args.random_seed,
         }
-        if args.use_cache:
-            cache_dir, cache_key = compute_bundle_dir(
-                args.cache_dir, args.config, run_parameters
-            )
-            if bundle_exists(cache_dir):
-                loaded = load_simulation_bundle(cache_dir)
-                result = loaded.result
-                run_parameters = loaded.metadata.get("run_parameters", run_parameters)
-                print(f"キャッシュヒット: {cache_dir} (key={cache_key})")
-            else:
-                result = simulate_trajectory(
-                    config=args.config,
-                    mode_indices=mode_indices,
-                    mode_displacements=mode_displacements,
-                    mode_velocities=mode_velocities,
-                    dt=args.dt,
-                    total_time=args.T,
-                    save_stride=args.thin,
-                    center_mass=args.center_mass,
-                    modal_kick_energy=args.modal_kick_energy,
-                    repulsive_exp=args.repulsive_exp,
-                    attractive_exp=args.attractive_exp,
-                    random_displacement=args.random_displacement,
-                    random_kick_energy=args.random_kick_energy,
-                    random_seed=args.random_seed,
-                )
-                save_simulation_bundle(cache_dir, result, run_parameters)
-                print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
-            if args.save_bundle is not None and Path(args.save_bundle) != cache_dir:
-                save_simulation_bundle(Path(args.save_bundle), result, run_parameters)
-                print(f"バンドルを書き出しました: {args.save_bundle}")
-        else:
-            result = simulate_trajectory(
-                config=args.config,
-                mode_indices=mode_indices,
-                mode_displacements=mode_displacements,
-                mode_velocities=mode_velocities,
-                dt=args.dt,
-                total_time=args.T,
-                save_stride=args.thin,
-                center_mass=args.center_mass,
-                modal_kick_energy=args.modal_kick_energy,
-                repulsive_exp=args.repulsive_exp,
-                attractive_exp=args.attractive_exp,
-                random_displacement=args.random_displacement,
-                random_kick_energy=args.random_kick_energy,
-                random_seed=args.random_seed,
-            )
-            if args.save_bundle is not None:
-                save_simulation_bundle(Path(args.save_bundle), result, run_parameters)
-                print(f"バンドルを書き出しました: {args.save_bundle}")
+        result, run_parameters, cache_dir, cache_key, from_cache = simulate_with_cache(
+            args.config,
+            run_parameters,
+            cache_root=args.cache_dir,
+            use_cache=args.use_cache,
+            simulate_fn=lambda **kw: simulate_trajectory(
+                config=args.config, **kw
+            ),
+        )
+        if from_cache:
+            print(f"キャッシュヒット: {cache_dir} (key={cache_key})")
+        elif args.use_cache:
+            print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
+        if args.save_bundle is not None:
+            out_dir = Path(args.save_bundle)
+            if not from_cache or out_dir != cache_dir:
+                save_simulation_bundle(out_dir, result, run_parameters)
+            print(f"バンドルを書き出しました: {args.save_bundle}")
 
     trace_index = (
         args.trace_index if args.trace_index is not None else result.spec.trace_index

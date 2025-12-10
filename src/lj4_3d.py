@@ -14,10 +14,9 @@ import numpy as np
 
 from lj4_storage import (
     CACHE_DEFAULT_DIRNAME,
-    bundle_exists,
-    compute_bundle_dir,
     load_simulation_bundle,
     save_simulation_bundle,
+    simulate_with_cache,
 )
 
 from lj4_core import (
@@ -413,92 +412,6 @@ def _build_run_parameters(
     }
 
 
-def integrate(
-    config: str,
-    mode_displacement: float | Seq[float],
-    mode_velocity: float | Seq[float],
-    dt: float,
-    total_time: float,
-    save_stride: int,
-    center_mass: float,
-    repulsive_exp: int,
-    attractive_exp: int,
-    mode_indices: Seq[int] | None = None,
-    modal_kick_energy: float = 0.01,
-    random_displacement: float = 0.0,
-    random_kick_energy: float = 0.0,
-    random_seed: int | None = None,
-) -> SimulationResult:
-    disp_list = _ensure_float_list(mode_displacement)
-    vel_list = _ensure_float_list(mode_velocity)
-    return simulate_trajectory(
-        config=config,
-        mode_indices=mode_indices,
-        mode_displacements=disp_list,
-        mode_velocities=vel_list,
-        dt=dt,
-        total_time=total_time,
-        save_stride=save_stride,
-        center_mass=center_mass,
-        repulsive_exp=repulsive_exp,
-        attractive_exp=attractive_exp,
-        modal_kick_energy=modal_kick_energy,
-        random_displacement=random_displacement,
-        random_kick_energy=random_kick_energy,
-        random_seed=random_seed,
-    )
-
-
-def simulate(
-    config: str,
-    mode_displacement: float,
-    mode_velocity: float,
-    dt: float,
-    total_time: float,
-    save_stride: int,
-    center_mass: float,
-    repulsive_exp: int,
-    attractive_exp: int,
-    mode_indices: Seq[int] | None = None,
-    mode_displacements: Seq[float] | None = None,
-    mode_velocities: Seq[float] | None = None,
-    modal_kick_energy: float = 0.01,
-    random_displacement: float = 0.0,
-    random_kick_energy: float = 0.0,
-    random_seed: int | None = None,
-):
-    result = integrate(
-        config,
-        mode_displacements if mode_displacements is not None else mode_displacement,
-        mode_velocities if mode_velocities is not None else mode_velocity,
-        dt,
-        total_time,
-        save_stride,
-        center_mass,
-        repulsive_exp=repulsive_exp,
-        attractive_exp=attractive_exp,
-        mode_indices=mode_indices,
-        modal_kick_energy=modal_kick_energy,
-        random_displacement=random_displacement,
-        random_kick_energy=random_kick_energy,
-        random_seed=random_seed,
-    )
-    kinetic, potential, total = compute_energy_series(result)
-    return (
-        result.spec,
-        result.omega2,
-        result.initial_displacement,
-        result.masses,
-        result.times,
-        result.positions,
-        kinetic,
-        potential,
-        total,
-        float(total[0]),
-        float(total[-1]),
-    )
-
-
 def main() -> None:
     args = parse_args()
     loading_bundle = args.load_bundle is not None
@@ -573,57 +486,22 @@ def main() -> None:
             args.random_kick_energy,
             args.random_seed,
         )
-        if args.use_cache:
-            cache_dir, cache_key = compute_bundle_dir(
-                args.cache_dir, args.config, run_parameters
-            )
-            if bundle_exists(cache_dir):
-                loaded = load_simulation_bundle(cache_dir)
-                result = loaded.result
-                run_parameters = loaded.metadata.get("run_parameters", run_parameters)
-                print(f"キャッシュヒット: {cache_dir} (key={cache_key})")
-            else:
-                result = integrate(
-                    args.config,
-                    mode_displacements,
-                    mode_velocities,
-                    args.dt,
-                    args.T,
-                    args.thin,
-                    args.center_mass,
-                    repulsive_exp=args.repulsive_exp,
-                    attractive_exp=args.attractive_exp,
-                    mode_indices=mode_indices,
-                    modal_kick_energy=args.modal_kick_energy,
-                    random_displacement=args.random_displacement,
-                    random_kick_energy=args.random_kick_energy,
-                    random_seed=args.random_seed,
-                )
-                save_simulation_bundle(cache_dir, result, run_parameters)
-                print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
-            if args.save_bundle is not None and Path(args.save_bundle) != cache_dir:
-                save_simulation_bundle(args.save_bundle, result, run_parameters)
-                print(f"バンドルを書き出しました: {args.save_bundle}")
-        else:
-            result = integrate(
-                args.config,
-                mode_displacements,
-                mode_velocities,
-                args.dt,
-                args.T,
-                args.thin,
-                args.center_mass,
-                repulsive_exp=args.repulsive_exp,
-                attractive_exp=args.attractive_exp,
-                mode_indices=mode_indices,
-                modal_kick_energy=args.modal_kick_energy,
-                random_displacement=args.random_displacement,
-                random_kick_energy=args.random_kick_energy,
-                random_seed=args.random_seed,
-            )
-            if args.save_bundle is not None:
-                save_simulation_bundle(args.save_bundle, result, run_parameters)
-                print(f"バンドルを書き出しました: {args.save_bundle}")
+        result, run_parameters, cache_dir, cache_key, from_cache = simulate_with_cache(
+            args.config,
+            run_parameters,
+            cache_root=args.cache_dir,
+            use_cache=args.use_cache,
+            simulate_fn=lambda **kw: simulate_trajectory(args.config, **kw),
+        )
+        if from_cache:
+            print(f"キャッシュヒット: {cache_dir} (key={cache_key})")
+        elif args.use_cache:
+            print(f"キャッシュ保存: {cache_dir} (key={cache_key})")
+        if args.save_bundle is not None:
+            out_dir = Path(args.save_bundle)
+            if not from_cache or out_dir != cache_dir:
+                save_simulation_bundle(out_dir, result, run_parameters)
+            print(f"バンドルを書き出しました: {args.save_bundle}")
 
     print(f"Configuration: {result.spec.label}")
     mode_info = ", ".join(

@@ -1,6 +1,6 @@
 uv run src/lj4_3d.py \
     --config rhombus \
-    --mode-displacement 0.15 \
+    --mode-displacement 0.16 \
     --mode-velocity 0.0 \
     --T 80 \
     --thin 10 \

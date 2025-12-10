@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -200,3 +200,34 @@ def load_simulation_bundle(bundle_dir: Path) -> LoadedSimulation:
         dihedral_edges=tuple(tuple(edge) for edge in meta["dihedral_edges"]),
     )
     return LoadedSimulation(result=result, metadata=meta)
+
+
+def simulate_with_cache(
+    config: str,
+    run_parameters: dict[str, Any],
+    cache_root: Path,
+    use_cache: bool,
+    simulate_fn: Callable[..., SimulationResult],
+) -> tuple[SimulationResult, dict[str, Any], Path, str, bool]:
+    """Run simulation with optional cache reuse.
+
+    Args:
+        config: configuration key.
+        run_parameters: parameters passed to simulate_fn (**run_parameters).
+        cache_root: base directory for cache.
+        use_cache: whether to reuse/save cache.
+        simulate_fn: callable that returns SimulationResult when invoked with run_parameters.
+
+    Returns:
+        (result, run_parameters_out, bundle_dir, cache_key, from_cache)
+    """
+
+    bundle_dir, cache_key = compute_bundle_dir(cache_root, config, run_parameters)
+    if use_cache and bundle_exists(bundle_dir):
+        loaded = load_simulation_bundle(bundle_dir)
+        return loaded.result, loaded.metadata.get("run_parameters", run_parameters), bundle_dir, cache_key, True
+
+    result = simulate_fn(**run_parameters)
+    if use_cache:
+        save_simulation_bundle(bundle_dir, result, run_parameters)
+    return result, run_parameters, bundle_dir, cache_key, False

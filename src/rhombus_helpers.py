@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
-
 
 def solve_rhombus_angle_and_side(
     repulsive_exp: int, attractive_exp: int
