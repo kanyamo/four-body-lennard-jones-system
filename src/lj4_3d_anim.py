@@ -69,6 +69,18 @@ def parse_args() -> argparse.Namespace:
         help="mass assigned to the central particle in the triangle+center case",
     )
     ap.add_argument(
+        "--repulsive-exp",
+        type=int,
+        default=12,
+        help="repulsive exponent p in the (p,q)-LJ potential (triangle_center only)",
+    )
+    ap.add_argument(
+        "--attractive-exp",
+        type=int,
+        default=6,
+        help="attractive exponent q in the (p,q)-LJ potential (triangle_center only)",
+    )
+    ap.add_argument(
         "--trace-index",
         type=int,
         default=None,
@@ -218,6 +230,8 @@ def simulate(
     save_stride: int,
     center_mass: float,
     modal_kick_energy: float,
+    repulsive_exp: int,
+    attractive_exp: int,
     mode_indices: Seq[int] | None = None,
 ):
     disp = _ensure_float_list(mode_displacement)
@@ -232,6 +246,8 @@ def simulate(
         save_stride=save_stride,
         center_mass=center_mass,
         modal_kick_energy=modal_kick_energy,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
     )
     return result.spec, result.mode_eigenvalues, result.times, result.positions
 
@@ -246,6 +262,14 @@ def main() -> None:
         raise ValueError("random initializations are incompatible with --load-bundle")
     if args.thin < 1:
         raise ValueError("--thin must be >= 1")
+    if args.repulsive_exp <= args.attractive_exp or args.attractive_exp <= 0:
+        raise ValueError("repulsive-exp must be > attractive-exp > 0")
+    if args.config != "triangle_center" and (
+        args.repulsive_exp != 12 or args.attractive_exp != 6
+    ):
+        raise ValueError(
+            "(p,q) exponents other than (12,6) are currently supported only for triangle_center"
+        )
     if not loading_bundle and args.center_mass <= 0.0:
         raise ValueError("--center_mass must be positive")
     if args.use_cache and loading_bundle:
@@ -283,6 +307,8 @@ def main() -> None:
             "total_time": args.T,
             "save_stride": args.thin,
             "center_mass": args.center_mass,
+            "repulsive_exp": args.repulsive_exp,
+            "attractive_exp": args.attractive_exp,
             "mode_indices": list(mode_indices),
             "mode_displacements": list(mode_displacements),
             "mode_velocities": list(mode_velocities),
@@ -311,6 +337,8 @@ def main() -> None:
                     save_stride=args.thin,
                     center_mass=args.center_mass,
                     modal_kick_energy=args.modal_kick_energy,
+                    repulsive_exp=args.repulsive_exp,
+                    attractive_exp=args.attractive_exp,
                     random_displacement=args.random_displacement,
                     random_kick_energy=args.random_kick_energy,
                     random_seed=args.random_seed,
@@ -331,6 +359,8 @@ def main() -> None:
                 save_stride=args.thin,
                 center_mass=args.center_mass,
                 modal_kick_energy=args.modal_kick_energy,
+                repulsive_exp=args.repulsive_exp,
+                attractive_exp=args.attractive_exp,
                 random_displacement=args.random_displacement,
                 random_kick_energy=args.random_kick_energy,
                 random_seed=args.random_seed,

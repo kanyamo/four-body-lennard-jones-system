@@ -20,6 +20,8 @@ from lj4_core import (
     compute_energy_series,
     compute_modal_projections,
     kinetic_energy,
+    DEFAULT_REPULSIVE_EXP,
+    DEFAULT_ATTRACTIVE_EXP,
     prepare_equilibrium,
     simulate_trajectory,
     stable_modes,
@@ -175,8 +177,18 @@ def main() -> None:
     if not (0.0 <= args.mix_min <= args.mix_max <= 1.0):
         raise SystemExit("--mix-min/max must satisfy 0 <= min <= max <= 1")
 
-    _, equilibrium, masses = prepare_equilibrium(args.config, args.center_mass)
-    all_modes = stable_modes(equilibrium, masses)
+    _, equilibrium, masses = prepare_equilibrium(
+        args.config,
+        args.center_mass,
+        repulsive_exp=DEFAULT_REPULSIVE_EXP,
+        attractive_exp=DEFAULT_ATTRACTIVE_EXP,
+    )
+    all_modes = stable_modes(
+        equilibrium,
+        masses,
+        repulsive_exp=DEFAULT_REPULSIVE_EXP,
+        attractive_exp=DEFAULT_ATTRACTIVE_EXP,
+    )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -198,6 +210,8 @@ def main() -> None:
             random_displacement=0.0,
             random_kick_energy=0.0,
             random_seed=None,
+            repulsive_exp=DEFAULT_REPULSIVE_EXP,
+            attractive_exp=DEFAULT_ATTRACTIVE_EXP,
         )
         times = np.asarray(result.times)
         kinetic, potential, _ = compute_energy_series(result)

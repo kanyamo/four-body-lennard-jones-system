@@ -66,6 +66,8 @@ def save_summary_json(
         "frames": int(len(result.times)),
         "n_particles": int(result.positions.shape[1]),
         "masses": result.masses.tolist(),
+        "repulsive_exp": result.repulsive_exp,
+        "attractive_exp": result.attractive_exp,
         "time_start": float(result.times[0]),
         "time_end": float(result.times[-1]),
         "times": result.times.tolist(),
@@ -221,6 +223,18 @@ def parse_args() -> argparse.Namespace:
         help="mass assigned to the central particle in the triangle+center case",
     )
     ap.add_argument(
+        "--repulsive-exp",
+        type=int,
+        default=12,
+        help="repulsive exponent p in the (p,q)-LJ potential (triangle_center only)",
+    )
+    ap.add_argument(
+        "--attractive-exp",
+        type=int,
+        default=6,
+        help="attractive exponent q in the (p,q)-LJ potential (triangle_center only)",
+    )
+    ap.add_argument(
         "--save-traj",
         type=Path,
         default=None,
@@ -372,6 +386,8 @@ def _build_run_parameters(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    repulsive_exp: int,
+    attractive_exp: int,
     mode_indices: Seq[int],
     mode_displacements: Seq[float],
     mode_velocities: Seq[float],
@@ -385,6 +401,8 @@ def _build_run_parameters(
         "total_time": total_time,
         "save_stride": save_stride,
         "center_mass": center_mass,
+        "repulsive_exp": repulsive_exp,
+        "attractive_exp": attractive_exp,
         "mode_indices": list(mode_indices),
         "mode_displacements": list(mode_displacements),
         "mode_velocities": list(mode_velocities),
@@ -403,6 +421,8 @@ def integrate(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    repulsive_exp: int,
+    attractive_exp: int,
     mode_indices: Seq[int] | None = None,
     modal_kick_energy: float = 0.01,
     random_displacement: float = 0.0,
@@ -420,6 +440,8 @@ def integrate(
         total_time=total_time,
         save_stride=save_stride,
         center_mass=center_mass,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
         modal_kick_energy=modal_kick_energy,
         random_displacement=random_displacement,
         random_kick_energy=random_kick_energy,
@@ -435,6 +457,8 @@ def simulate(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    repulsive_exp: int,
+    attractive_exp: int,
     mode_indices: Seq[int] | None = None,
     mode_displacements: Seq[float] | None = None,
     mode_velocities: Seq[float] | None = None,
@@ -451,6 +475,8 @@ def simulate(
         total_time,
         save_stride,
         center_mass,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
         mode_indices=mode_indices,
         modal_kick_energy=modal_kick_energy,
         random_displacement=random_displacement,
@@ -486,6 +512,14 @@ def main() -> None:
     if not loading_bundle:
         if args.center_mass <= 0.0:
             raise ValueError("--center-mass must be positive")
+        if args.repulsive_exp <= args.attractive_exp or args.attractive_exp <= 0:
+            raise ValueError("repulsive-exp must be > attractive-exp > 0")
+        if args.config != "triangle_center" and (
+            args.repulsive_exp != 12 or args.attractive_exp != 6
+        ):
+            raise ValueError(
+                "(p,q) 指数の指定は現在 triangle_center のみ対応しています"
+            )
     if args.use_cache and loading_bundle:
         print("注意: --load-bundle が指定されたため --use-cache は無視します。")
         args.use_cache = False
@@ -535,6 +569,8 @@ def main() -> None:
             args.T,
             args.thin,
             args.center_mass,
+            args.repulsive_exp,
+            args.attractive_exp,
             mode_indices,
             mode_displacements,
             mode_velocities,
@@ -561,6 +597,8 @@ def main() -> None:
                     args.T,
                     args.thin,
                     args.center_mass,
+                    repulsive_exp=args.repulsive_exp,
+                    attractive_exp=args.attractive_exp,
                     mode_indices=mode_indices,
                     modal_kick_energy=args.modal_kick_energy,
                     random_displacement=args.random_displacement,
@@ -581,6 +619,8 @@ def main() -> None:
                 args.T,
                 args.thin,
                 args.center_mass,
+                repulsive_exp=args.repulsive_exp,
+                attractive_exp=args.attractive_exp,
                 mode_indices=mode_indices,
                 modal_kick_energy=args.modal_kick_energy,
                 random_displacement=args.random_displacement,

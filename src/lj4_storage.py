@@ -71,6 +71,10 @@ def bundle_from_result(
         "save_stride": result.save_stride,
         "center_mass": result.center_mass,
         "modal_kick_energy": result.modal_kick_energy,
+        "lj_exponents": {
+            "repulsive": result.repulsive_exp,
+            "attractive": result.attractive_exp,
+        },
     }
 
     arrays: dict[str, np.ndarray] = {
@@ -168,12 +172,18 @@ def load_simulation_bundle(bundle_dir: Path) -> LoadedSimulation:
         mode_shapes_arr[idx] for idx in range(mode_shapes_arr.shape[0])
     )
 
+    lj_meta = meta.get("lj_exponents", {})
+    repulsive_exp = int(lj_meta.get("repulsive", meta.get("repulsive_exp", 12)))
+    attractive_exp = int(lj_meta.get("attractive", meta.get("attractive_exp", 6)))
+
     result = SimulationResult(
         spec=spec,
         omega2=float(meta["omega2"]),
         initial_displacement=arrays["initial_displacement"],
         initial_velocity=arrays["initial_velocity"],
         masses=arrays["masses"],
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
         times=arrays["times"],
         positions=arrays["positions"],
         velocities=arrays["velocities"],

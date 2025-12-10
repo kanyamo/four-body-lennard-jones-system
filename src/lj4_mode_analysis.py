@@ -29,16 +29,7 @@ from typing import Iterable
 
 import numpy as np
 
-
-LJ_COEFF = 4.0  # ε = σ = 1 in reduced units
-
-
-def equilibrium_radius() -> float:
-    """Return the equilibrium center–vertex distance r* for the 4-body setup."""
-
-    num = 2.0 * (1.0 + 1.0 / (3.0**6))
-    den = 1.0 + 1.0 / (3.0**3)
-    return (num / den) ** (1.0 / 6.0)
+from lj4_core import build_hessian, lj_force_derivative, triangle_equilibrium_radius
 
 
 def triangle_vertices(radius: float) -> np.ndarray:
@@ -51,51 +42,6 @@ def triangle_vertices(radius: float) -> np.ndarray:
     )
     verts -= verts.mean(axis=0, keepdims=True)
     return verts
-
-
-def lj_force_derivative(r: float) -> float:
-    """Return V'(r) for the reduced (6,12) Lennard-Jones potential."""
-
-    inv_r = 1.0 / r
-    inv_r2 = inv_r * inv_r
-    inv_r6 = inv_r2**3
-    inv_r12 = inv_r6**2
-    return LJ_COEFF * (6.0 * inv_r6 * inv_r - 12.0 * inv_r12 * inv_r)
-
-
-def pair_hessian(r_vec: np.ndarray) -> np.ndarray:
-    """LJ Hessian block contribution for a given displacement vector."""
-
-    r = float(np.linalg.norm(r_vec))
-    if r < 1e-12:
-        raise ValueError("Particles overlap; Hessian undefined.")
-    e = r_vec / r
-    inv_r = 1.0 / r
-    inv_r2 = inv_r * inv_r
-    inv_r6 = inv_r2**3
-    inv_r12 = inv_r6**2
-    v1 = LJ_COEFF * (-12.0 * inv_r12 * inv_r + 6.0 * inv_r6 * inv_r)
-    v2 = LJ_COEFF * (156.0 * inv_r12 * inv_r2 - 42.0 * inv_r6 * inv_r2)
-    outer = np.outer(e, e)
-    return (v2 - v1 * inv_r) * outer + (v1 * inv_r) * np.eye(3)
-
-
-def build_hessian(positions: np.ndarray) -> np.ndarray:
-    """Construct the 12×12 Hessian matrix for the supplied configuration."""
-
-    n = positions.shape[0]
-    H = np.zeros((3 * n, 3 * n), dtype=float)
-    for i in range(n - 1):
-        for j in range(i + 1, n):
-            rij = positions[j] - positions[i]
-            kij = pair_hessian(rij)
-            sl_i = slice(3 * i, 3 * i + 3)
-            sl_j = slice(3 * j, 3 * j + 3)
-            H[sl_i, sl_i] += kij
-            H[sl_j, sl_j] += kij
-            H[sl_i, sl_j] -= kij
-            H[sl_j, sl_i] -= kij
-    return H
 
 
 def mass_weighted_hessian(H: np.ndarray, masses: np.ndarray) -> np.ndarray:
@@ -245,6 +191,18 @@ def parse_args() -> argparse.Namespace:
         help="number of digits to print for eigenvalues",
     )
     ap.add_argument(
+        "--repulsive-exp",
+        type=int,
+        default=12,
+        help="repulsive exponent p in the (p,q)-LJ potential (default: 12)",
+    )
+    ap.add_argument(
+        "--attractive-exp",
+        type=int,
+        default=6,
+        help="attractive exponent q in the (p,q)-LJ potential (default: 6)",
+    )
+    ap.add_argument(
         "--zero-tol",
         type=float,
         default=1e-8,
@@ -360,8 +318,12 @@ def validate_rhombus(theta: float, a: float, tol: float = 1e-8) -> None:
 
     c = float(np.cos(theta / 2.0))
     s = float(np.sin(theta / 2.0))
-    eq1 = 2.0 * c * lj_force_derivative(a) + lj_force_derivative(2.0 * a * c)
-    eq2 = 2.0 * s * lj_force_derivative(a) + lj_force_derivative(2.0 * a * s)
+    eq1 = 2.0 * c * lj_force_derivative(a, repulsive_exp=12, attractive_exp=6) + lj_force_derivative(
+        2.0 * a * c, repulsive_exp=12, attractive_exp=6
+    )
+    eq2 = 2.0 * s * lj_force_derivative(a, repulsive_exp=12, attractive_exp=6) + lj_force_derivative(
+        2.0 * a * s, repulsive_exp=12, attractive_exp=6
+    )
     if abs(eq1) > tol or abs(eq2) > tol:
         raise ValueError(
             "Angle {:.6f} rad ({:.6f}°) is not an LJ rhombus equilibrium".format(
@@ -377,13 +339,19 @@ def format_angle(theta: float, digits: int = 10) -> str:
 def main() -> None:
     args = parse_args()
 
+    if args.config != "triangle_center" and (
+        args.repulsive_exp != 12 or args.attractive_exp != 6
+    ):
+        raise NotImplementedError("(p,q) exponents ≠ (12,6) are only supported for triangle_center")
+
     if args.config == "triangle_center":
-        r_star = equilibrium_radius()
+        r_star = triangle_equilibrium_radius(args.repulsive_exp, args.attractive_exp)
         radius = args.side_scale * r_star
         positions = np.vstack([np.zeros((1, 3)), triangle_vertices(radius)])
         masses = np.array([args.center_mass] + [args.outer_mass] * 3, dtype=float)
         config_label = "triangle + center (C3v)"
         info_lines = [
+            f"(p, q) exponents = ({args.repulsive_exp}, {args.attractive_exp})",
             f"r* = {r_star:.8f}",
             f"radius = {radius:.8f} (scale={args.side_scale})",
         ]
@@ -423,7 +391,9 @@ def main() -> None:
             "long_diagonal": long_diag,
         }
 
-    H = build_hessian(positions)
+    H = build_hessian(
+        positions, repulsive_exp=args.repulsive_exp, attractive_exp=args.attractive_exp
+    )
     H_mw = mass_weighted_hessian(H, masses)
 
     lam_h, vec_h = np.linalg.eigh(H)
@@ -473,9 +443,7 @@ def main() -> None:
             reshaped = vec.reshape(-1, 3)
             for pid, comps in enumerate(reshaped):
                 label = "P0" if pid == 0 else f"P{pid}"
-                print(
-                    f"  {label}: ({comps[0]:+.6f}, {comps[1]:+.6f}, {comps[2]:+.6f})"
-                )
+                print(f"  {label}: ({comps[0]:+.6f}, {comps[1]:+.6f}, {comps[2]:+.6f})")
             print()
 
     if args.save_json:

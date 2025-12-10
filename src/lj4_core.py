@@ -33,6 +33,8 @@ class SimulationResult:
     initial_displacement: np.ndarray
     initial_velocity: np.ndarray
     masses: np.ndarray
+    repulsive_exp: int
+    attractive_exp: int
     times: np.ndarray
     positions: np.ndarray
     velocities: np.ndarray
@@ -55,6 +57,30 @@ class ModalBasis:
     vectors: np.ndarray
     classifications: tuple[str, ...]
     labels: tuple[str, ...]
+
+
+DEFAULT_REPULSIVE_EXP = 12
+DEFAULT_ATTRACTIVE_EXP = 6
+
+
+def triangle_equilibrium_radius(repulsive_exp: int, attractive_exp: int) -> float:
+    """Return r* for the triangle+center setup under a (p,q)-LJ potential."""
+
+    p = float(repulsive_exp)
+    q = float(attractive_exp)
+    if p <= q or p <= 0 or q <= 0:
+        raise ValueError("Require repulsive_exp p > attractive_exp q > 0.")
+    ratio = (p * (1.0 + 3.0 ** (-p / 2.0))) / (q * (1.0 + 3.0 ** (-q / 2.0)))
+    return ratio ** (1.0 / (p - q))
+
+
+def lj_force_derivative(r: float, repulsive_exp: int, attractive_exp: int) -> float:
+    """Return V'(r) for the reduced (p,q) Lennard-Jones potential."""
+
+    inv_r = 1.0 / r
+    inv_r_p1 = inv_r ** (repulsive_exp + 1)
+    inv_r_q1 = inv_r ** (attractive_exp + 1)
+    return 4.0 * (-repulsive_exp * inv_r_p1 + attractive_exp * inv_r_q1)
 
 
 def _regular_tetrahedron() -> np.ndarray:
@@ -101,8 +127,10 @@ def _rhombus_planar() -> np.ndarray:
     return positions
 
 
-def _triangle_plus_center() -> np.ndarray:
-    r_star = (2.0 * (1.0 + 1.0 / (3.0**6)) / (1.0 + 1.0 / (3.0**3))) ** (1.0 / 6.0)
+def _triangle_plus_center(
+    repulsive_exp: int = 12, attractive_exp: int = 6
+) -> np.ndarray:
+    r_star = triangle_equilibrium_radius(repulsive_exp, attractive_exp)
     angles = np.deg2rad([0.0, 120.0, 240.0])
     ring = np.stack(
         [r_star * np.cos(angles), r_star * np.sin(angles), np.zeros_like(angles)],
@@ -131,44 +159,91 @@ def _isosceles_with_interior() -> np.ndarray:
     return coords
 
 
-def _build_equilibria() -> dict[str, EquilibriumSpec]:
-    return {
-        "tetrahedron": EquilibriumSpec(
+CONFIG_KEYS = (
+    "tetrahedron",
+    "rhombus",
+    "square",
+    "triangle_center",
+    "isosceles_interior",
+    "linear_chain",
+)
+
+
+def _build_equilibrium(
+    config: str, repulsive_exp: int, attractive_exp: int
+) -> EquilibriumSpec:
+    if config == "tetrahedron":
+        return EquilibriumSpec(
             key="tetrahedron",
             label="tetrahedron (T_d)",
             positions=_regular_tetrahedron(),
             edges=tuple(combinations(range(4), 2)),
             trace_index=0,
-        ),
-        "rhombus": EquilibriumSpec(
+        )
+    if config == "rhombus":
+        if (
+            repulsive_exp != DEFAULT_REPULSIVE_EXP
+            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
+        ):
+            raise NotImplementedError(
+                "(p,q) exponents other than (12,6) are not supported for rhombus"
+            )
+        return EquilibriumSpec(
             key="rhombus",
             label="rhombus (θ≈60.27°)",
             positions=_rhombus_planar(),
             edges=((0, 1), (1, 2), (2, 3), (3, 0)),
             trace_index=0,
-        ),
-        "square": EquilibriumSpec(
+        )
+    if config == "square":
+        if (
+            repulsive_exp != DEFAULT_REPULSIVE_EXP
+            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
+        ):
+            raise NotImplementedError(
+                "(p,q) exponents other than (12,6) are not supported for square"
+            )
+        return EquilibriumSpec(
             key="square",
             label="square (D_4h)",
             positions=_square_planar(),
             edges=((0, 1), (1, 2), (2, 3), (3, 0), (0, 2), (1, 3)),
             trace_index=0,
-        ),
-        "triangle_center": EquilibriumSpec(
+        )
+    if config == "triangle_center":
+        return EquilibriumSpec(
             key="triangle_center",
             label="triangle + center (C_3v)",
-            positions=_triangle_plus_center(),
+            positions=_triangle_plus_center(
+                repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+            ),
             edges=((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)),
             trace_index=3,
-        ),
-        "isosceles_interior": EquilibriumSpec(
+        )
+    if config == "isosceles_interior":
+        if (
+            repulsive_exp != DEFAULT_REPULSIVE_EXP
+            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
+        ):
+            raise NotImplementedError(
+                "(p,q) exponents other than (12,6) are not supported for isosceles_interior"
+            )
+        return EquilibriumSpec(
             key="isosceles_interior",
             label="isosceles triangle + interior (C_s)",
             positions=_isosceles_with_interior(),
             edges=((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)),
             trace_index=3,
-        ),
-        "linear_chain": EquilibriumSpec(
+        )
+    if config == "linear_chain":
+        if (
+            repulsive_exp != DEFAULT_REPULSIVE_EXP
+            or attractive_exp != DEFAULT_ATTRACTIVE_EXP
+        ):
+            raise NotImplementedError(
+                "(p,q) exponents other than (12,6) are not supported for linear_chain"
+            )
+        return EquilibriumSpec(
             key="linear_chain",
             label="linear chain (D_∞h)",
             positions=np.array(
@@ -182,17 +257,14 @@ def _build_equilibria() -> dict[str, EquilibriumSpec]:
             ),
             edges=((0, 1), (1, 2), (2, 3), (0, 2), (1, 3), (0, 3)),
             trace_index=0,
-        ),
-    }
-
-
-EQUILIBRIA = _build_equilibria()
+        )
+    raise KeyError(f"Unknown configuration '{config}'")
 
 
 def available_configs() -> tuple[str, ...]:
     """Return the available configuration keys in sorted order."""
 
-    return tuple(sorted(EQUILIBRIA.keys()))
+    return CONFIG_KEYS
 
 
 DIHEDRAL_EDGES: tuple[tuple[int, int], ...] = tuple(combinations(range(4), 2))
@@ -283,38 +355,45 @@ def plot_dihedral_series(
     plt.close()
 
 
-def lj_force_pair_3d(r_vec: np.ndarray) -> np.ndarray:
+def lj_force_pair_3d(
+    r_vec: np.ndarray, repulsive_exp: int, attractive_exp: int
+) -> np.ndarray:
     r2 = float(r_vec @ r_vec)
     if r2 < 1e-16:
         return np.zeros(3)
-    inv_r2 = 1.0 / r2
-    inv_r6 = inv_r2**3
-    inv_r12 = inv_r6**2
-    factor = 24.0 * (2.0 * inv_r12 * inv_r2 - inv_r6 * inv_r2)
+    inv_r = 1.0 / math.sqrt(r2)
+    inv_r_p1 = inv_r ** (repulsive_exp + 1)
+    inv_r_q1 = inv_r ** (attractive_exp + 1)
+    v1 = 4.0 * (-repulsive_exp * inv_r_p1 + attractive_exp * inv_r_q1)  # V'(r)
+    factor = -v1 * inv_r  # force = -V'(r) * r_vec / r
     return factor * r_vec
 
 
-def lj_total_forces_3d(X: np.ndarray) -> np.ndarray:
+def lj_total_forces_3d(
+    X: np.ndarray, repulsive_exp: int, attractive_exp: int
+) -> np.ndarray:
     n = X.shape[0]
     F = np.zeros_like(X)
     for i in range(n - 1):
         for j in range(i + 1, n):
             rij = X[j] - X[i]
-            fij = lj_force_pair_3d(rij)
+            fij = lj_force_pair_3d(
+                rij, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+            )
             F[i] -= fij
             F[j] += fij
     return F
 
 
-def lj_total_potential(X: np.ndarray) -> float:
+def lj_total_potential(X: np.ndarray, repulsive_exp: int, attractive_exp: int) -> float:
     energy = 0.0
     n = X.shape[0]
     for i in range(n - 1):
         for j in range(i + 1, n):
             r = np.linalg.norm(X[j] - X[i])
-            inv_r6 = (1.0 / r) ** 6
-            inv_r12 = inv_r6 * inv_r6
-            energy += 4.0 * (inv_r12 - inv_r6)
+            inv_r_p = (1.0 / r) ** repulsive_exp
+            inv_r_q = (1.0 / r) ** attractive_exp
+            energy += 4.0 * (inv_r_p - inv_r_q)
     return energy
 
 
@@ -322,8 +401,16 @@ def kinetic_energy(V: np.ndarray, masses: np.ndarray) -> float:
     return 0.5 * np.sum(masses[:, None] * (V**2))
 
 
-def total_energy(X: np.ndarray, V: np.ndarray, masses: np.ndarray) -> float:
-    return kinetic_energy(V, masses) + lj_total_potential(X)
+def total_energy(
+    X: np.ndarray,
+    V: np.ndarray,
+    masses: np.ndarray,
+    repulsive_exp: int,
+    attractive_exp: int,
+) -> float:
+    return kinetic_energy(V, masses) + lj_total_potential(
+        X, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
 
 
 cbrt2 = 2.0 ** (1.0 / 3.0)
@@ -333,40 +420,57 @@ YS = (w1, w0, w1)
 
 
 def step_yoshida4(
-    X: np.ndarray, V: np.ndarray, dt: float, masses: np.ndarray
+    X: np.ndarray,
+    V: np.ndarray,
+    dt: float,
+    masses: np.ndarray,
+    repulsive_exp: int,
+    attractive_exp: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     inv_m = 1.0 / masses[:, None]
     for w in YS:
-        F = lj_total_forces_3d(X)
+        F = lj_total_forces_3d(
+            X, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+        )
         V = V + 0.5 * (w * dt) * (F * inv_m)
         X = X + (w * dt) * V
-        F = lj_total_forces_3d(X)
+        F = lj_total_forces_3d(
+            X, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+        )
         V = V + 0.5 * (w * dt) * (F * inv_m)
     return X, V
 
 
-def pair_hessian(r_vec: np.ndarray) -> np.ndarray:
+def pair_hessian(
+    r_vec: np.ndarray, repulsive_exp: int, attractive_exp: int
+) -> np.ndarray:
     r = float(np.linalg.norm(r_vec))
     if r < 1e-12:
         raise ValueError("Particles overlap; Hessian undefined.")
     e = r_vec / r
     inv_r = 1.0 / r
-    inv_r2 = inv_r * inv_r
-    inv_r6 = inv_r2**3
-    inv_r12 = inv_r6**2
-    v1 = 4.0 * (-12.0 * inv_r12 * inv_r + 6.0 * inv_r6 * inv_r)
-    v2 = 4.0 * (156.0 * inv_r12 * inv_r2 - 42.0 * inv_r6 * inv_r2)
+    inv_r_p1 = inv_r ** (repulsive_exp + 1)
+    inv_r_q1 = inv_r ** (attractive_exp + 1)
+    v1 = 4.0 * (-repulsive_exp * inv_r_p1 + attractive_exp * inv_r_q1)
+    v2 = 4.0 * (
+        repulsive_exp * (repulsive_exp + 1) * inv_r ** (repulsive_exp + 2)
+        - attractive_exp * (attractive_exp + 1) * inv_r ** (attractive_exp + 2)
+    )
     outer = np.outer(e, e)
     return (v2 - v1 * inv_r) * outer + (v1 * inv_r) * np.eye(3)
 
 
-def build_hessian(positions: np.ndarray) -> np.ndarray:
+def build_hessian(
+    positions: np.ndarray, repulsive_exp: int, attractive_exp: int
+) -> np.ndarray:
     n = positions.shape[0]
     H = np.zeros((3 * n, 3 * n), dtype=float)
     for i in range(n - 1):
         for j in range(i + 1, n):
             rij = positions[j] - positions[i]
-            kij = pair_hessian(rij)
+            kij = pair_hessian(
+                rij, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+            )
             sl_i = slice(3 * i, 3 * i + 3)
             sl_j = slice(3 * j, 3 * j + 3)
             H[sl_i, sl_i] += kij
@@ -421,6 +525,8 @@ def _rotation_seeds(positions: np.ndarray) -> list[np.ndarray]:
 def compute_modal_basis(
     positions: np.ndarray,
     masses: np.ndarray,
+    repulsive_exp: int,
+    attractive_exp: int,
     zero_tol: float = 1e-8,
 ) -> ModalBasis:
     if np.any(masses <= 0):
@@ -428,7 +534,9 @@ def compute_modal_basis(
 
     mass_diag = _mass_repetition(masses)
     weights = np.sqrt(mass_diag)
-    H = build_hessian(positions)
+    H = build_hessian(
+        positions, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
     Hmw = H / weights[:, None]
     Hmw = Hmw / weights[None, :]
     eigvals, eigvecs = np.linalg.eigh(Hmw)
@@ -537,9 +645,15 @@ def _rigid_align(
 
 
 def stable_modes(
-    positions: np.ndarray, masses: np.ndarray, tol: float = 1e-8
+    positions: np.ndarray,
+    masses: np.ndarray,
+    repulsive_exp: int,
+    attractive_exp: int,
+    tol: float = 1e-8,
 ) -> list[tuple[np.ndarray, float]]:
-    H = build_hessian(positions)
+    H = build_hessian(
+        positions, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
     weights = np.repeat(np.sqrt(masses), 3)
     Hmw = H / weights[:, None]
     Hmw = Hmw / weights[None, :]
@@ -560,18 +674,33 @@ def stable_modes(
 
 
 def first_stable_mode(
-    positions: np.ndarray, masses: np.ndarray, tol: float = 1e-8
+    positions: np.ndarray,
+    masses: np.ndarray,
+    repulsive_exp: int,
+    attractive_exp: int,
+    tol: float = 1e-8,
 ) -> tuple[np.ndarray, float]:
-    modes = stable_modes(positions, masses, tol)
+    modes = stable_modes(
+        positions,
+        masses,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
+        tol=tol,
+    )
     return modes[0]
 
 
 def prepare_equilibrium(
-    config: str, center_mass: float
+    config: str,
+    center_mass: float,
+    repulsive_exp: int,
+    attractive_exp: int,
 ) -> tuple[EquilibriumSpec, np.ndarray, np.ndarray]:
-    if config not in EQUILIBRIA:
+    if config not in CONFIG_KEYS:
         raise KeyError(f"Unknown configuration '{config}'")
-    spec = EQUILIBRIA[config]
+    spec = _build_equilibrium(
+        config, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
     base = np.array(spec.positions, copy=True)
     masses = np.ones(base.shape[0], dtype=float)
     if config == "triangle_center":
@@ -590,6 +719,8 @@ def simulate_trajectory(
     total_time: float,
     save_stride: int,
     center_mass: float,
+    repulsive_exp: int,
+    attractive_exp: int,
     random_displacement: float = 0.0,
     random_kick_energy: float = 0.0,
     random_seed: int | None = None,
@@ -598,9 +729,18 @@ def simulate_trajectory(
     if save_stride < 1:
         raise ValueError("save_stride must be >= 1")
 
-    spec, equilibrium, masses = prepare_equilibrium(config, center_mass)
-    all_modes = stable_modes(equilibrium, masses)
-    modal_basis = compute_modal_basis(equilibrium, masses)
+    spec, equilibrium, masses = prepare_equilibrium(
+        config, center_mass, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
+    all_modes = stable_modes(
+        equilibrium, masses, repulsive_exp=repulsive_exp, attractive_exp=attractive_exp
+    )
+    modal_basis = compute_modal_basis(
+        equilibrium,
+        masses,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
+    )
 
     selected_indices = tuple(mode_indices) if mode_indices is not None else (0,)
     if not selected_indices:
@@ -695,7 +835,14 @@ def simulate_trajectory(
     Xc = X0.copy()
     Vc = V0.copy()
     for step in range(nsteps):
-        Xc, Vc = step_yoshida4(Xc, Vc, dt, masses)
+        Xc, Vc = step_yoshida4(
+            Xc,
+            Vc,
+            dt,
+            masses,
+            repulsive_exp=repulsive_exp,
+            attractive_exp=attractive_exp,
+        )
         if (step + 1) % save_stride == 0:
             snaps.append(Xc.copy())
             times.append((step + 1) * dt)
@@ -709,6 +856,8 @@ def simulate_trajectory(
         initial_displacement=initial_displacement,
         initial_velocity=initial_velocity,
         masses=masses,
+        repulsive_exp=repulsive_exp,
+        attractive_exp=attractive_exp,
         times=np.array(times),
         positions=np.array(snaps),
         velocities=velocities_arr,
@@ -730,7 +879,16 @@ def compute_energy_series(
     result: SimulationResult,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     kinetic = np.array([kinetic_energy(v, result.masses) for v in result.velocities])
-    potential = np.array([lj_total_potential(x) for x in result.positions])
+    potential = np.array(
+        [
+            lj_total_potential(
+                x,
+                repulsive_exp=result.repulsive_exp,
+                attractive_exp=result.attractive_exp,
+            )
+            for x in result.positions
+        ]
+    )
     total = kinetic + potential
     return kinetic, potential, total
 
@@ -740,7 +898,12 @@ def compute_modal_projections(
     modal_basis: ModalBasis | None = None,
     align: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, ModalBasis]:
-    basis = modal_basis or compute_modal_basis(result.spec.positions, result.masses)
+    basis = modal_basis or compute_modal_basis(
+        result.spec.positions,
+        result.masses,
+        repulsive_exp=result.repulsive_exp,
+        attractive_exp=result.attractive_exp,
+    )
     mass_diag = _mass_repetition(result.masses)
     basis_T = basis.vectors.T
     eq_flat = result.spec.positions.reshape(-1)
@@ -790,13 +953,14 @@ __all__ = [
     "EquilibriumSpec",
     "SimulationResult",
     "ModalBasis",
-    "EQUILIBRIA",
+    "CONFIG_KEYS",
     "DIHEDRAL_EDGES",
     "available_configs",
     "dihedral_angle_for_edge",
     "dihedral_angles",
     "plot_dihedral_series",
     "lj_force_pair_3d",
+    "lj_force_derivative",
     "lj_total_forces_3d",
     "lj_total_potential",
     "kinetic_energy",
@@ -804,6 +968,9 @@ __all__ = [
     "step_yoshida4",
     "pair_hessian",
     "build_hessian",
+    "triangle_equilibrium_radius",
+    "DEFAULT_REPULSIVE_EXP",
+    "DEFAULT_ATTRACTIVE_EXP",
     "recenter",
     "first_stable_mode",
     "stable_modes",
