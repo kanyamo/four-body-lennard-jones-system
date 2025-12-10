@@ -125,9 +125,7 @@ def sweep_side_scales(
     """Evaluate break times for each side_scale in *side_scales* across all thresholds."""
     results: list[dict[str, float | str | None]] = []
     for scale in tqdm(side_scales, desc="Sweeping side scales"):
-        res = measure_breaks(
-            scale, vb, z0, dt, T, thresholds, check_every, center_mass
-        )
+        res = measure_breaks(scale, vb, z0, dt, T, thresholds, check_every, center_mass)
         results.extend(res)
     return results
 
@@ -161,12 +159,13 @@ def plot_results(
                 for item in entries
             ]
         )
-        broke_mask = np.array([item["break_time"] is not None for item in entries])
         plt.plot(scales, times, label=f"threshold={thr:.3f}", linewidth=1.5)
     plt.axhline(T, color="#bbbbbb", linestyle="--", linewidth=1.0, label=f"T={T}")
     plt.xlabel("side_scale")
     plt.ylabel("time to break")
-    plt.title(f"Time until structure break vs side_scale (center_mass={center_mass:.2f})")
+    plt.title(
+        f"Time until structure break vs side_scale (center_mass={center_mass:.2f})"
+    )
     plt.xlim(0.8, 1.6)
     plt.legend()
     plt.tight_layout()

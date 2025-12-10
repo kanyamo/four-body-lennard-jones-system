@@ -15,6 +15,7 @@ from typing import Sequence
 import numpy as np
 
 from rhombus_helpers import solve_rhombus_angle_and_side
+from utils import DIHEDRAL_EDGES, dihedral_angle_for_edge, dihedral_angles, recenter
 
 
 @dataclass(frozen=True)
@@ -273,50 +274,6 @@ def available_configs() -> tuple[str, ...]:
     """Return the available configuration keys in sorted order."""
 
     return CONFIG_KEYS
-
-
-DIHEDRAL_EDGES: tuple[tuple[int, int], ...] = tuple(combinations(range(4), 2))
-_DIHEDRAL_COMPLEMENTS: dict[tuple[int, int], tuple[int, int]] = {
-    edge: tuple(sorted(set(range(4)) - set(edge))) for edge in DIHEDRAL_EDGES
-}
-
-
-def dihedral_angle_for_edge(
-    positions: np.ndarray, edge: tuple[int, int], eps: float = 1e-12
-) -> float:
-    """Compute the dihedral angle (radians) around the given edge.
-
-    The angle is defined between the planes formed by the two triangles that share
-    the edge. A perfectly planar configuration yields an angle close to pi.
-    """
-
-    i, j = edge
-    if positions.shape[0] <= max(i, j):
-        raise ValueError("Edge index out of range for provided positions.")
-    k, l = _DIHEDRAL_COMPLEMENTS[edge]  # noqa: E741
-    pi, pj, pk, pl = positions[i], positions[j], positions[k], positions[l]
-
-    edge_vec = pj - pi
-    n1 = np.cross(edge_vec, pk - pi)
-    n2 = np.cross(edge_vec, pl - pi)
-    n1_norm = float(np.linalg.norm(n1))
-    n2_norm = float(np.linalg.norm(n2))
-    if n1_norm < eps or n2_norm < eps:
-        return math.nan
-    cos_theta = float(np.dot(n1, n2) / (n1_norm * n2_norm))
-    cos_theta = min(1.0, max(-1.0, cos_theta))
-    raw_angle = math.acos(cos_theta)
-    # Planar configurations should map to pi regardless of normal orientation.
-    return math.pi - min(raw_angle, math.pi - raw_angle)
-
-
-def dihedral_angles(positions: np.ndarray) -> np.ndarray:
-    """Return dihedral angles (radians) for all 6 edges."""
-
-    angles = np.empty(len(DIHEDRAL_EDGES), dtype=float)
-    for idx, edge in enumerate(DIHEDRAL_EDGES):
-        angles[idx] = dihedral_angle_for_edge(positions, edge)
-    return angles
 
 
 def plot_dihedral_series(
@@ -628,11 +585,6 @@ def compute_modal_basis(
         classifications=tuple(classifications),
         labels=tuple(labels),
     )
-
-
-def recenter(points: np.ndarray, masses: np.ndarray) -> np.ndarray:
-    com = np.average(points, axis=0, weights=masses)
-    return points - com
 
 
 def _rigid_align(
