@@ -334,18 +334,24 @@ def rhombus_edge_length(theta: float) -> float:
 
 
 def rhombus_vertices(a: float, theta: float) -> np.ndarray:
-    """Return positions of a planar rhombus with side length a and angle θ."""
+    """Return a planar rhombus with side length a and interior angle θ.
 
+    The vertices are placed so that the shorter対角線 (2 a sin θ/2) lies on the x 軸
+    and the長い対角線 (2 a cos θ/2) lies on the y 軸, matching the orientation used
+    in reports/_rhombus_planar(). The centroid is at the origin.
+    """
+
+    short_diag = 2.0 * a * np.sin(theta / 2.0)
+    long_diag = 2.0 * a * np.cos(theta / 2.0)
     verts = np.array(
         [
-            (0.0, 0.0, 0.0),
-            (a, 0.0, 0.0),
-            (a + a * np.cos(theta), a * np.sin(theta), 0.0),
-            (a * np.cos(theta), a * np.sin(theta), 0.0),
+            (-0.5 * short_diag, 0.0, 0.0),
+            (0.0, -0.5 * long_diag, 0.0),
+            (0.0, 0.5 * long_diag, 0.0),
+            (0.5 * short_diag, 0.0, 0.0),
         ],
         dtype=float,
     )
-    verts -= verts.mean(axis=0, keepdims=True)
     return verts
 
 

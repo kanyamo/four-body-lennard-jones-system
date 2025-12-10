@@ -74,25 +74,26 @@ def _regular_tetrahedron() -> np.ndarray:
 
 def _square_planar() -> np.ndarray:
     side = 1.1126198392
-    half = 0.5 * side
+    half_diag = 0.5 * side * math.sqrt(2.0)
     return np.array(
         [
-            (-half, -half, 0.0),
-            (half, -half, 0.0),
-            (half, half, 0.0),
-            (-half, half, 0.0),
+            (-half_diag, 0.0, 0.0),
+            (0.0, -half_diag, 0.0),
+            (half_diag, 0.0, 0.0),
+            (0.0, half_diag, 0.0),
         ],
         dtype=float,
     )
 
 
 def _rhombus_planar() -> np.ndarray:
+    # Rotated so each vertex lies on either the x- or y-axis for easier reasoning.
     positions = np.array(
         [
-            (0.0, 0.0, 0.0),
-            (1.1202309526, 0.0, 0.0),
-            (-0.5555370480, 0.9727774540, 0.0),
-            (0.5646939046, 0.9727774540, 0.0),
+            (-0.5624000313, 0.0, 0.0),
+            (0.0, -0.9688258831, 0.0),
+            (0.0, 0.9688258831, 0.0),
+            (0.5624000313, 0.0, 0.0),
         ],
         dtype=float,
     )
