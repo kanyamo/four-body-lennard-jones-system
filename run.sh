@@ -18,10 +18,10 @@
 # displacement collapse scan
 # uv run src/scan_displacement_collapse.py \
 #     --config rhombus \
-#     --disp-min 0.0 \
-#     --disp-max 0.2 \
-#     --disp-samples 100 \
-#     --T 300 \
+#     --disp-min 0.025 \
+#     --disp-max 0.075 \
+#     --disp-samples 10 \
+#     --T 500 \
 #     --thin 10 \
 #     --modal-kick-energy 0.00001 \
 #     --mode-index 0 \
@@ -30,12 +30,12 @@
 
 # spring single run
 uv run src/spring4_3d_anim.py \
-    --mode-displacement 0.2,0.1 \
+    --mode-displacement 0.1,0.1,0.2 \
     --mode-velocity 0.0 \
     --T 200 \
     --thin 10 \
     --kick-energy 0.001 \
-    --modes 1,2 \
+    --modes 0,1,2 \
     # --plot-modal results/modal_plot.png \
     # --plot-modal-categories stable,unstable \
     # --plot-energies results/energy_plot.png \
